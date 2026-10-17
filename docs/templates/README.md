@@ -55,6 +55,9 @@ entity + chunk ──► normalise (html, "(hcc)", ICD codes in text, abbreviati
 | `scripts/error_analysis.py` | breakdown by failure mode, long tail, coverage |
 | `scripts/demo.py` | interactive / scripted demo with hard cases |
 | `scripts/run_all.sh` | **single command**: build missing pieces and predict |
+| `scripts/train_cross_encoder.py` | fine-tune the shortlist cross-encoder (5-fold OOF + final) |
+| `scripts/export_oof.py` | cross-validated predictions for every training row |
+| `tests/` | unit tests (pytest) |
 | `slurm/*.sbatch` | SLURM wrappers (GPU work never runs on the login node) |
 
 ## Setup
@@ -126,6 +129,12 @@ python scripts/train.py --dense sapbert gte qwen3 --tag _d3llm --feats-tag _d3 \
        --llm $TERMMAP_ARTIFACTS_DIR/llm_scores_train_d3.parquet
 python scripts/predict.py --input X.csv --output Y.csv --tag _d3llm --llm-model Qwen/Qwen2.5-7B-Instruct
 python scripts/demo.py --tag _sap4 [--interactive]              # hard-case walkthrough
+```
+
+## Tests
+
+```bash
+source scripts/env.sh && $PY -m pytest -q tests     # unit tests for the deterministic components (~2 s)
 ```
 
 ## Determinism
