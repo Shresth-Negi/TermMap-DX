@@ -20,7 +20,7 @@ The supplied training file differs from the schema in the brief, and that change
   "abnormal movement" → R29.898 (an "other symptoms" residual code). 98% of gold ICD codes are
   billable leaves; for SNOMED, 92% of gold `display` strings are the concept's preferred term.
   Some labels are arguably noisy ("benign prostatic hyperplasia" → *Benign fibroma of
-  prostate*). Inter-annotator agreement is not published, so the practical ceiling is unknown.
+  prostate*). Inter-annotator agreement is not published; §5 estimates the practical ceiling from near-duplicate terms.
 * **Exact dictionary matching barely helps.** Only 4.3% of ICD and 18.9% of SNOMED diagnosis
   terms match a description of their gold code exactly after normalisation.
 
@@ -37,14 +37,14 @@ route low-confidence terms to review.
 bullets and list numbering. ICD codes written in the text are detected ("primary oa left knee
 m17.12") and become candidates. Abbreviation expansion produces *query variants*; it never
 replaces the original string. The lexicon has two sources: 7.7k `ABBR - Expansion` descriptions
-mined from the supplied SNOMED file ("AR - Aortic regurgitation", "HHS - Hyperosmolar
-hyperglycaemic state") and a short curated list of chart shorthand (HTN, LE, bilat, s/p…).
-Ambiguous abbreviations (MS, RA, PID…) keep every reading as a separate variant, and the ranker
-uses context to choose. Negation, history and family-history cues are read from the 60
-characters before the mention.
+mined from the supplied SNOMED file ("AR - Aortic regurgitation", "HV - Hallux valgus") and a short curated list of chart shorthand (HTN, LE, bilat, s/p…).
+Ambiguous abbreviations (MS, RA, PID…) keep every reading as a separate variant. Each reading
+is scored against the context with the mention removed, and every candidate inherits the score
+of the reading that explains it best. Negation, history and family-history cues are read from
+the 60 characters before the mention; history cues are also read inside it ("h/o dvt").
 
-**SNOMED synonym bridge for ICD.** The SNOMED dictionary is roughly six times richer in
-synonyms than ICD. For ICD queries, the preferred terms of the top SNOMED concepts (dense match)
+**SNOMED synonym bridge for ICD.** The SNOMED dictionary has six times as many descriptions as
+ICD (985k vs 159k). For ICD queries, the preferred terms of the top SNOMED concepts (dense match)
 are added as extra query variants. So "hepatic enlargement" also searches ICD as "hepatomegaly".
 
 **Candidate generation (recall).** Per system, we take the union of: exact normalised-key match;
@@ -55,14 +55,15 @@ codes carry the house convention. All retrieval runs over unique normalised desc
 for ICD and 624k for SNOMED, after stripping the FSN semantic tag.
 
 **Stage-1 ranker.** Every candidate is scored by *every* signal, not only by the retriever that
-proposed it. That gives ~80 features: max/preferred-term cosine per encoder (original and
+proposed it. That gives ~85 features: max/preferred-term cosine per encoder (original and
 expanded query), char/word TF-IDF, fuzzy ratios, query/description token coverage, numbers and
 stage agreement ("stage 2" vs N18.30), laterality match/conflict/missing, negation and history
 agreement, and context overlap. For ICD it adds billable flag, code depth, "unspecified"/"other"
 wording, 7th-character encounter type and chapter. For SNOMED it adds semantic tag (crossed with
 the entity's subconcept) and description order. Training-memory features include neighbour votes
-at code and, for ICD, 3-character-category level (explicit specificity calibration), plus code
-and category priors. A LightGBM LambdaRank model per system ranks the candidates.
+at code and, for ICD, 3-character-category level (explicit specificity calibration). There is
+also a *contextual* neighbour vote, entity similarity × context similarity, so that a neighbour
+from a different clinical setting counts less. Code and category priors complete the set. A LightGBM LambdaRank model per system ranks the candidates.
 
 **Stage-2 ranker.** A second LambdaRank model works on the top-20 shortlist. It uses stage-1
 score, rank and gap, plus **cross-system coupling**: the ICD and SNOMED predictions for the same
@@ -72,10 +73,15 @@ system's shortlist, weighted by its probabilities. In the GPU configuration, sta
 **LLM listwise scores**. A local Qwen2.5-Instruct model sees the term, its context, its entity
 type, the five most similar *already-coded* training terms with their codes, and the top-10
 candidates as lettered options. One forward pass gives the log-probability of each option
-letter: no generation, no sampling, deterministic.
+letter: no generation, no sampling, deterministic. A fine-tuned **cross-encoder** (SapBERT
+initialisation, listwise loss over the shortlist, 5-fold out-of-fold) adds a learned
+semantic-match score. Both models see SNOMED options with their semantic tag
+("International normalized ratio [observable entity]").
 
-**Calibration.** Isotonic regression on the out-of-fold stage-2 margin turns ranker scores into
-P(correct), which is reported as `confidence`.
+**Stage selection and calibration.** Per system, stage 2 is used only if it beats stage 1 out of
+fold; without new evidence (no cross-encoder or LLM) it does not, and stage 1 is kept. Isotonic
+regression on the out-of-fold margin of the selected stage turns ranker scores into P(correct),
+which is reported as `confidence`.
 
 ## 3. Evaluation protocol (no leakage)
 
@@ -129,7 +135,7 @@ FAILURE_TABLE
   exists as a procedure, an observable and a finding ("inr", "full mask cpap", "acute rash"
   → *Acute eruption of skin* vs *Eruption*). The entity's subconcept helps, but the training
   convention is not uniform.
-* *Laterality* errors are rare (≈1%) thanks to explicit laterality match/conflict features.
+* *Laterality* errors are rare (≈1% of rows).
 
 **Long tail.** Accuracy falls with how often the gold code was seen elsewhere in training:
 
@@ -147,7 +153,7 @@ right reading (e.g. "MS" + "mitral valve area" → mitral stenosis 0.46 vs multi
 0.27), but with so few collision examples in training the ranker under-uses it. When a
 neighbour shares the exact abbreviation ("ra" → *Breathing room air* from "hypoxic on ra"), the
 house convention wins over context. These cases come out with low calibrated confidence and are
-routed to review. The LLM stage, which reads the context, is the component that fixes them.
+routed to review. The LLM stage, which reads the context, is designed to resolve them.
 
 **Calibrated abstention.** Confidence is isotonic-calibrated on out-of-fold margins:
 
