@@ -1,0 +1,18 @@
+# Proprietary challenge data - never commit
+data/raw/
+*.csv
+*.xlsx
+!data/sample/*.csv
+# Large/generated artifacts (rebuilt by scripts/build_all.sh)
+artifacts
+artifacts/
+outputs/
+slurm/logs/
+# Environment / secrets
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.work/
