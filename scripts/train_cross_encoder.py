@@ -29,7 +29,7 @@ fold = keys["fold"]
 out = []
 for sys_ in args.systems:
     X = pd.read_parquet(ARTIFACTS / f"feats2_{sys_}{args.tag}.parquet", columns=["key", "code", "s1_rank", "label"])
-    desc_of = description_map(sys_)
+    desc_of = description_map(sys_, with_semtag=True)
     groups = build_groups(sys_, X, keys, desc_of)
     if args.limit:
         groups = groups[: args.limit]

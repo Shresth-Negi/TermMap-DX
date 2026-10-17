@@ -54,9 +54,10 @@ class Engine:
                 from .cross_encoder import CrossEncoder
                 t = name[len("ce_scores_train"):-len(".parquet")]
                 self.ce = {s: CrossEncoder(str(ARTIFACTS / f"ce_{s}{t}")) for s in SYSTEMS}
-        self.desc, self.calib = {}, {}
+        self.desc, self.calib, self.model_desc = {}, {}, {}
         for s in SYSTEMS:
             self.desc[s] = description_map(s)
+            self.model_desc[s] = description_map(s, with_semtag=True)  # what the CE / LLM were trained on
             cp = ARTIFACTS / f"calib_{s}{tag}.json"
             if cp.exists():
                 self.calib[s] = json.loads(cp.read_text())
@@ -99,9 +100,9 @@ class Engine:
             parts = []
             for s in SYSTEMS:
                 mem, mem_keys = self.mem[s]
-                ex = (neighbour_examples(mem, mem_keys, self.qenc, self.dense[0], keys, self.desc[s], s,
+                ex = (neighbour_examples(mem, mem_keys, self.qenc, self.dense[0], keys, self.model_desc[s], s,
                                          k=self.llm_shots, loo=False) if self.llm_shots else None)
-                parts.append(score_shortlists(self.llm, s, S[s], ki, self.desc[s], examples=ex))
+                parts.append(score_shortlists(self.llm, s, S[s], ki, self.model_desc[s], examples=ex))
                 self._log(f"[{s}] LLM shortlist scoring done ({time.time()-t0:.0f}s)")
             llm_scores = pd.concat(parts)
         extra = {s: [] for s in SYSTEMS}
@@ -112,7 +113,7 @@ class Engine:
             from .cross_encoder import build_groups
             ki = keys.set_index("key")
             for s in SYSTEMS:
-                extra[s].append(self.ce[s].score(build_groups(s, S[s], ki, self.desc[s])))
+                extra[s].append(self.ce[s].score(build_groups(s, S[s], ki, self.model_desc[s])))
                 self._log(f"[{s}] cross-encoder scoring done ({time.time()-t0:.0f}s)")
         out = {}
         for s in SYSTEMS:

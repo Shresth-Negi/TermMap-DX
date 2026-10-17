@@ -37,7 +37,7 @@ for sys_ in SYSTEMS:
     X = pd.read_parquet(ARTIFACTS / f"feats2_{sys_}{args.tag}.parquet", columns=["key", "code", "s1_rank"])
     if args.limit:
         X = X[X.key.isin(X.key.drop_duplicates().head(args.limit))]
-    desc_of = description_map(sys_)
+    desc_of = description_map(sys_, with_semtag=True)
     mem, mem_keys = build_memory(tr, sys_, qenc, ("sapbert",))
     qk = keys.loc[X.key.unique()].reset_index()
     ex = neighbour_examples(mem, mem_keys, qenc, "sapbert", qk, desc_of, sys_, k=args.shots, loo=True) if args.shots else None

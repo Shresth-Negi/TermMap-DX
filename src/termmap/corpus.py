@@ -41,11 +41,15 @@ def load_corpus(system: str) -> pd.DataFrame:
     return c
 
 
-def description_map(system: str) -> dict[str, str]:
-    """code -> human-readable title (SNOMED preferred term; ICD best guess at the official title)."""
+def description_map(system: str, with_semtag: bool = False) -> dict[str, str]:
+    """code -> human-readable title (SNOMED preferred term; ICD best guess at the official title).
+    with_semtag appends the SNOMED semantic tag, e.g. 'Chest pain [finding]' (for model inputs)."""
     e = load_entries(system)
     if system == "SNOMEDCT_US":
         e = e.sort_values("order", kind="stable")
     else:
         e = e.sort_values("official", ascending=False, kind="stable")
-    return e.drop_duplicates("code").set_index("code")["description"].to_dict()
+    e = e.drop_duplicates("code").set_index("code")
+    if with_semtag and system == "SNOMEDCT_US":
+        return {c: f"{d} [{t}]" if t != "unknown" else d for c, d, t in zip(e.index, e["description"], e["semtag"])}
+    return e["description"].to_dict()

@@ -88,6 +88,15 @@ fold. Exact-match accuracy is reported per system; the headline is the lower of 
 
 RESULTS_SECTION
 
+### Latency and footprint
+
+Measured on the shared node (AMD EPYC 9554, 16 threads, no GPU) for the CPU model set `_sap4`,
+mapping both systems per term: **50 ms/term in batch (≈72k terms/hour)**, single-term latency
+331 ms median / 372 ms p95, 64 s cold start, 16 GB RAM (dense indexes held as float32). The
+cross-encoder adds ~1.5 ms/term on a GPU. The LLM stage costs one ~700-token forward pass per
+term per system (LLM_LATENCY). It is the only component
+that needs a GPU at inference, and it can be limited to low-confidence terms.
+
 ## 5. Error analysis
 
 Numbers in this section are from out-of-fold predictions of the configuration in the headline
@@ -181,6 +190,16 @@ COVERAGE_TABLE
   ±0.3 pt, which is within noise. Stage 2 earns its place only with the LLM scores.
 * **Larger shortlists for stage 2.** Going from 12 to 20 candidates recovers 2–4 pt of recall
   without hurting top-1.
+* **Ranker hyper-parameter search.** Six LightGBM variants (learning rate / leaves, XE-NDCG,
+  binary objective, stronger regularisation) and rank-averaged ensembles of objectives/seeds all
+  landed within ±0.5 pt of the defaults. The
+  model is limited by its evidence, not its capacity, so we kept the defaults.
+* **A diagnosis-only SNOMED ranker.** Training only on diagnosis rows gave 60.0% on
+  diagnoses vs 60.4% when trained on all entity types: procedures, labs and devices transfer
+  useful convention.
+* **Context alone for abbreviation collisions.** The context-conditioned reading score is
+  correct on the showcase cases but barely moves CV (only 1.9% of rows are bare ambiguous
+  abbreviations), so it is kept as a feature and the LLM stage handles the rest.
 * **Official SNOMED→ICD map / UMLS.** Not used (licence-gated, and the brief notes the map
   cannot be ground truth). A data-driven co-occurrence prior replaces it.
 

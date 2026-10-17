@@ -14,6 +14,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--final", required=True)
 ap.add_argument("--rows", nargs="+", required=True, help="label=tag pairs, in ablation order")
 ap.add_argument("--note", default="")
+ap.add_argument("--llm-latency", default="measured in the GPU run")
 args = ap.parse_args()
 
 
@@ -80,7 +81,7 @@ results = (f"## 4. Results\n\nAll numbers are 5-fold CV exact match on the 9,646
 tpl = (ROOT / "docs" / "templates" / "WRITEUP.md").read_text()
 tpl = (tpl.replace("RESULTS_SECTION", results).replace("FAILURE_TABLE", "\n".join(ft))
        .replace("LONGTAIL_TABLE", "\n".join(lt)).replace("COVERAGE_TABLE", "\n".join(cov))
-       .replace("SUBCONCEPT_LINE", subline)
+       .replace("SUBCONCEPT_LINE", subline).replace("LLM_LATENCY", args.llm_latency)
        .replace("ICD_CAT", f"{I['same_3char_category']:.0%}").replace("ICD_CHAP", f"{I['same_chapter_letter']:.0%}"))
 (ROOT / "docs" / "WRITEUP.md").write_text(tpl)
 rt = (ROOT / "docs" / "templates" / "README.md").read_text()
