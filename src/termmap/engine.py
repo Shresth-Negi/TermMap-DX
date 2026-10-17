@@ -43,11 +43,12 @@ class Engine:
         self.s2 = {s: ranker.load(s, "_s2" + tag) for s in SYSTEMS}
         self.llm, self.llm_shots = None, llm_shots
         llm_model = llm_model or cfg.get("llm_model", "")
-        if cfg.get("llm") and llm_model:
+        needs_s2 = any(self.final_stage.get(s, 2) == 2 for s in SYSTEMS)  # stage-2 extras only if used
+        if cfg.get("llm") and llm_model and needs_s2:
             from .llm_scorer import LLMScorer
             self.llm = LLMScorer(llm_model)
         self.ce = {}
-        for p in cfg.get("extra", []):
+        for p in (cfg.get("extra", []) if needs_s2 else []):
             name = Path(p).name
             if name.startswith("ce_scores_train"):
                 from .cross_encoder import CrossEncoder
@@ -119,9 +120,10 @@ class Engine:
             X = S[s].reset_index(drop=True)
             X = pd.concat([X, self.coupler.features(s, X, top_probs(S[other]))], axis=1)
             bst, cols = self.s2[s]
-            if "llm_lp" in cols and llm_scores is None:
+            if "llm_lp" in cols and llm_scores is None and self.final_stage.get(s, 2) == 2:
                 raise ValueError("stage-2 model expects LLM scores; run on a GPU with the LLM or use a non-LLM tag")
-            X = add_extra_features(X, extra[s])
+            if self.final_stage.get(s, 2) == 2:
+                X = add_extra_features(X, extra[s])
             if self.final_stage.get(s, 2) == 2:
                 X["s2"] = bst.predict(X[cols], num_threads=ranker.PARAMS["num_threads"])
             else:  # CV preferred stage 1 for this system
