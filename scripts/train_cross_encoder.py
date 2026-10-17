@@ -10,7 +10,7 @@ import time
 
 import pandas as pd
 
-from termmap.corpus import SYSTEMS, load_entries
+from termmap.corpus import SYSTEMS, description_map
 from termmap.cross_encoder import CrossEncoder, build_groups
 from termmap.paths import ARTIFACTS
 
@@ -29,10 +29,7 @@ fold = keys["fold"]
 out = []
 for sys_ in args.systems:
     X = pd.read_parquet(ARTIFACTS / f"feats2_{sys_}{args.tag}.parquet", columns=["key", "code", "s1_rank", "label"])
-    e = load_entries(sys_)
-    if sys_ == "SNOMEDCT_US":
-        e = e.sort_values("order", kind="stable")
-    desc_of = e.drop_duplicates("code").set_index("code")["description"].to_dict()
+    desc_of = description_map(sys_)
     groups = build_groups(sys_, X, keys, desc_of)
     if args.limit:
         groups = groups[: args.limit]

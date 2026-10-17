@@ -61,15 +61,17 @@ def results(report_paths):
     rows = []
     for name, p in report_paths:
         r = json.loads(Path(p).read_text())
-        rows.append((name, r["ICD10CM"]["stage2_cv_top1"], r["SNOMEDCT_US"]["stage2_cv_top1"]))
-    fig, ax = plt.subplots(figsize=(7, 3))
+        fin = [r[s].get("final_cv_top1", max(r[s]["stage1_cv_top1"], r[s]["stage2_cv_top1"]))
+               for s in ("ICD10CM", "SNOMEDCT_US")]
+        rows.append((name, *fin))
+    fig, ax = plt.subplots(figsize=(7.5, 2.4))
     import numpy as np
     x = np.arange(len(rows)); w = 0.38
     b1 = ax.bar(x - w / 2, [r[1] for r in rows], w, label="ICD-10-CM", color=A1)
     b2 = ax.bar(x + w / 2, [r[2] for r in rows], w, label="SNOMED CT", color=A2)
     for b in list(b1) + list(b2):
         ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.01, f"{b.get_height():.3f}", ha="center", fontsize=7)
-    ax.set_xticks(x, [r[0] for r in rows], fontsize=8)
+    ax.set_xticks(x, [r[0] for r in rows], fontsize=7)
     ax.set_ylim(0, 1); ax.set_ylabel("5-fold CV exact match")
     ax.spines[["top", "right"]].set_visible(False); ax.legend(frameon=False, fontsize=8)
     fig.savefig(OUT / "ablation.png", dpi=200, bbox_inches="tight")

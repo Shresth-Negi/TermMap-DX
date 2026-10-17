@@ -39,8 +39,25 @@ def _cache(name: str) -> Path:
     return ARTIFACTS / f"{name}.parquet"
 
 
+_ICD_ABBR = re.compile(r"\b(unsp|oth|w|w/o|init|subs|encntr|sqla|NEC|NOS|fx|lt|rt|bi|unil|bilat|dis|disord|elsw|"
+                       r"clas|nontraum|traum|inj|cerv|thor|lumb)\b")
+
+
+def _official_score(desc: str, pos: int, n: int) -> float:
+    """Heuristic for the official long title among a code's rows: the file mixes the official
+    title, abbreviated short titles ('unsp', 'w'), NOS index terms and lowercase index entries."""
+    s = 0.0
+    if desc.endswith("NOS") or " NOS" in desc:
+        s -= 10
+    if _ICD_ABBR.search(desc):
+        s -= 5
+    if not desc[:1].isupper():
+        s -= 8
+    return s + pos / n + min(len(desc), 120) / 400
+
+
 def load_icd() -> pd.DataFrame:
-    """Rows: code, description, billable (leaf), is_range."""
+    """Rows: code, description, billable (leaf), is_range, official (best guess at the official title)."""
     p = _cache("icd_dict")
     if p.exists():
         return pd.read_parquet(p)
@@ -57,6 +74,13 @@ def load_icd() -> pd.DataFrame:
         leaf[c] = not nxt.startswith(c)
     df["billable"] = df["code"].map(leaf).fillna(False)
     df = df.drop_duplicates(["code", "description"]).reset_index(drop=True)
+    df["_pos"] = df.groupby("code").cumcount()
+    df["_n"] = df.groupby("code")["code"].transform("size")
+    df["_sc"] = [_official_score(d, p, n) for d, p, n in zip(df["description"], df["_pos"], df["_n"])]
+    best = df.groupby("code")["_sc"].idxmax()
+    df["official"] = False
+    df.loc[best.values, "official"] = True
+    df = df.drop(columns=["_pos", "_n", "_sc"])
     df.to_parquet(p)
     return df
 

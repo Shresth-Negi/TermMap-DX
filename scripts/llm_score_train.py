@@ -10,7 +10,7 @@ import time
 
 import pandas as pd
 
-from termmap.corpus import SYSTEMS, load_entries
+from termmap.corpus import SYSTEMS, description_map
 from termmap.encoders import Encoder
 from termmap.features import QueryEncoder
 from termmap.io import load_train
@@ -37,10 +37,7 @@ for sys_ in SYSTEMS:
     X = pd.read_parquet(ARTIFACTS / f"feats2_{sys_}{args.tag}.parquet", columns=["key", "code", "s1_rank"])
     if args.limit:
         X = X[X.key.isin(X.key.drop_duplicates().head(args.limit))]
-    e = load_entries(sys_)
-    if sys_ == "SNOMEDCT_US":
-        e = e.sort_values("order")
-    desc_of = e.drop_duplicates("code").set_index("code")["description"].to_dict()
+    desc_of = description_map(sys_)
     mem, mem_keys = build_memory(tr, sys_, qenc, ("sapbert",))
     qk = keys.loc[X.key.unique()].reset_index()
     ex = neighbour_examples(mem, mem_keys, qenc, "sapbert", qk, desc_of, sys_, k=args.shots, loo=True) if args.shots else None

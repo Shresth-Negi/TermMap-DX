@@ -34,9 +34,12 @@ out = pd.concat([df.reset_index(drop=True), res.reset_index(drop=True)], axis=1)
 if "coding_system" in out:
     out["code"] = [i if s == "ICD10CM" else n if s == "SNOMEDCT_US" else ""
                    for s, i, n in zip(out["coding_system"], out["icd10cm_code"], out["snomed_code"])]
+orig_cols = list(pd.read_csv(args.input, nrows=0).columns)
+if "clinical_entity" in orig_cols:
+    out = out.rename(columns={"entity": "clinical_entity"})
 if args.brief:
-    keep = [c for c in ("chunk_id", "entity", "chunk_text", "coding_system", "subconcept", "code",
-                        "icd10cm_code", "snomed_code") if c in out]
+    keep = [c for c in orig_cols if c in out and c not in ("code", "display")]
+    keep += [c for c in ("code", "icd10cm_code", "snomed_code") if c in out and c not in keep]
     out = out[keep]
 Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 out.to_csv(args.output, index=False)

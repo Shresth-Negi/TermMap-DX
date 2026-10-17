@@ -17,7 +17,7 @@ def load_entries(system: str) -> pd.DataFrame:
         return pd.read_parquet(p)
     if system == "ICD10CM":
         d = load_icd()
-        d = d[~d["is_range"]][["code", "description", "billable"]].copy()
+        d = d[~d["is_range"]][["code", "description", "billable", "official"]].copy()
     else:
         d = load_snomed()[["code", "description", "order", "semtag"]].copy()
     d["norm"] = d["description"].map(basic_norm if system == "ICD10CM" else strip_semtag)
@@ -39,3 +39,13 @@ def load_corpus(system: str) -> pd.DataFrame:
     c = c.sort_index()
     c.to_parquet(p)
     return c
+
+
+def description_map(system: str) -> dict[str, str]:
+    """code -> human-readable title (SNOMED preferred term; ICD best guess at the official title)."""
+    e = load_entries(system)
+    if system == "SNOMEDCT_US":
+        e = e.sort_values("order", kind="stable")
+    else:
+        e = e.sort_values("official", ascending=False, kind="stable")
+    return e.drop_duplicates("code").set_index("code")["description"].to_dict()

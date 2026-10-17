@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from termmap.corpus import SYSTEMS, load_entries
+from termmap.corpus import SYSTEMS, description_map, load_entries
 from termmap.features import lat_of
 from termmap.paths import ARTIFACTS, ROOT
 
@@ -32,9 +32,7 @@ report, md = {}, [f"# Error analysis (out-of-fold, tag `{args.tag or 'default'}`
 for sys_ in SYSTEMS:
     o = pd.read_parquet(ARTIFACTS / f"oof_{sys_}{args.tag}.parquet")
     e = load_entries(sys_)
-    if sys_ == "SNOMEDCT_US":
-        e = e.sort_values("order")
-    desc = e.drop_duplicates("code").set_index("code")["description"]
+    desc = pd.Series(description_map(sys_))
     sem = e.drop_duplicates("code").set_index("code")["semtag"] if "semtag" in e else None
     freq = Counter(o["code"])
     o["gold_freq_loo"] = o["code"].map(freq) - 1
@@ -105,6 +103,38 @@ for sys_ in SYSTEMS:
         for _, x in g.sample(min(6, len(g)), random_state=0).iterrows():
             md.append(f"- `{x.entity}` → gold `{x.code}` {x.gold_desc} | pred `{x.pred}` {x.pred_desc}")
     o.to_parquet(ARTIFACTS / f"errors_{sys_}{args.tag}.parquet")
+
+# ---- label consistency: an empirical ceiling for exact match under the current gold labels
+from termmap.features import clean_entity
+from termmap.io import load_train
+from termmap.lexical import LexicalIndex
+import re as _re
+
+def _canon(t):
+    t = _re.sub(r"[^a-z0-9 ]", " ", clean_entity(t)[0])
+    return " ".join(sorted(w[:-1] if len(w) > 3 and w.endswith("s") else w for w in t.split()))
+
+tr = load_train()
+md.append("\n## Label consistency (empirical ceiling)\n")
+md.append("Pairs of training terms that are the same after normalisation (case, punctuation, plural, word order), "
+          "or nearly identical (char 3-4-gram cosine >= 0.95), and how often their gold codes agree:\n")
+md.append("| system | canonical-duplicate pairs | same gold code | near-identical pairs (cos>=0.95) | same gold code |\n|---|---|---|---|---|")
+for sys_ in SYSTEMS:
+    q = tr[tr.coding_system == sys_].reset_index(drop=True)
+    q["k"] = q.entity.map(_canon)
+    pairs = agree = 0
+    for _, d in q.groupby("k"):
+        c = d.code.tolist()
+        for i in range(len(c)):
+            for j in range(i + 1, len(c)):
+                pairs += 1; agree += c[i] == c[j]
+    texts = [clean_entity(e)[0] for e in q.entity]
+    ids, sc = LexicalIndex("char", "x").build(texts).search(texts, k=2)
+    near = [(i, ids[i][1]) for i in range(len(q)) if ids[i][1] >= 0 and sc[i][1] >= 0.95]
+    nagree = float(np.mean([q.code[i] == q.code[j] for i, j in near])) if near else float("nan")
+    report[sys_]["label_consistency"] = {"canonical_pairs": pairs, "canonical_agree": round(agree / max(pairs, 1), 4),
+                                         "near_pairs": len(near), "near_agree": round(nagree, 4)}
+    md.append(f"| {sys_} | {pairs} | {agree / max(pairs, 1):.3f} | {len(near)} | {nagree:.3f} |")
 
 report["headline_min_exact_match"] = min(report[s]["exact_match"] for s in SYSTEMS)
 (OUT / f"error_analysis{args.tag}.json").write_text(json.dumps(report, indent=2))

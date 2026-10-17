@@ -376,8 +376,10 @@ def build_features(res: SystemResources, mem: TrainMemory, qenc: QueryEncoder, Q
             feats["chapter"] = np.array([ord(c[0]) - 65 for c in codes])
             sb = self_code[:3] if self_code else None
             feats["block_prior"] = np.log1p([mem.block_prior.get(c[:3], 0) - (c[:3] == sb) for c in codes])
-            feats["is_unspec"] = np.array(["unspecified" in t for t in pref_txt], dtype=np.int8)
-            feats["is_other"] = np.array([t.startswith("other") or " other " in t for t in pref_txt], dtype=np.int8)
+            feats["is_unspec"] = np.array([("unspecified" in t) or res.any_unspec.get(c, False)
+                                           for t, c in zip(pref_txt, codes)], dtype=np.int8)
+            feats["is_other"] = np.array([t.startswith("other") or " other " in t or res.any_other.get(c, False)
+                                          for t, c in zip(pref_txt, codes)], dtype=np.int8)
             feats["enc7"] = np.array([{"A": 1, "D": 2, "S": 3}.get(c[-1], 0) if len(c.replace(".", "")) == 7 else 0
                                       for c in codes])
         else:

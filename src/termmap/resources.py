@@ -49,10 +49,13 @@ class SystemResources:
             self.semtag = dict(zip(first["code"], first["semtag"]))
             self.billable = {}
         else:
-            first = e.drop_duplicates("code")
+            first = e.sort_values("official", ascending=False, kind="stable").drop_duplicates("code")
             self.pref_desc = dict(zip(first["code"], first["desc_id"]))
             self.billable = dict(zip(first["code"], first["billable"]))
             self.semtag = {}
+            txt = e.assign(t=e["norm"]).groupby("code")["t"].agg(list)
+            self.any_unspec = {c: any("unspecified" in x for x in v) for c, v in txt.items()}
+            self.any_other = {c: any(x.startswith("other") or " other " in x for x in v) for c, v in txt.items()}
         self.desc_order = {}
         if "order" in e:
             for c, d, o in zip(e["code"], e["desc_id"], e["order"]):

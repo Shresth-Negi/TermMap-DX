@@ -10,7 +10,21 @@ each system. Everything runs locally: no chart text leaves the machine.
 
 ## Results (5-fold cross-validation on the labelled training set)
 
-RESULTS_TABLE
+| metric | ICD-10-CM | SNOMED CT |
+|---|---|---|
+| exact match (5-fold CV) | **0.658** | **0.507** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.527 | 0.438 |
+| accuracy on the 70% most confident | 0.778 | 0.617 |
+| same 3-character category (ICD partial credit) | 0.762 | – |
+| label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
+
+| configuration | ICD-10-CM | SNOMED CT | headline (min) | SNOMED, diagnoses only | candidate recall ICD / SNOMED |
+|---|---|---|---|---|---|
+| Lexical retrieval + ranker | 0.569 | 0.440 | 0.440 | 0.531 | 0.835 / 0.797 |
+| + SapBERT dense retrieval | 0.655 | 0.500 | 0.500 | 0.598 | 0.922 / 0.878 |
+| + context / negation / numeric features | 0.653 | 0.504 | 0.504 | 0.600 | 0.922 / 0.878 |
+| + contextual kNN, wider candidate pools | 0.655 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
+| **+ official ICD titles (CPU-only final)** | **0.658** | **0.507** | **0.507** | 0.604 | 0.929 / 0.889 |
 
 The headline number is the lower of the two systems, as in the brief. The
 long-tail column covers rows whose gold code appears at most twice elsewhere
@@ -84,27 +98,36 @@ No API keys are needed. See `.env.example`:
 | `TERMMAP_WORK` | scratch dir | venv, Hugging Face cache, artifacts |
 | `TERMMAP_ARTIFACTS_DIR` | `$TERMMAP_WORK/artifacts` | indexes, features, models |
 | `TERMMAP_RAW_DIR` | `data/raw` | challenge files |
-| `TERMMAP_TAG` | `_d3llm` | model set for `run_all.sh` (`_d3` = no LLM, CPU-only) |
+| `TERMMAP_TAG` | `_d3llm` | model set for `run_all.sh` (see table below) |
 | `TERMMAP_LLM` | `Qwen/Qwen2.5-7B-Instruct` | local LLM for the LLM stage |
 
 ## Run end to end (one command)
 
 ```bash
-# GPU node (via SLURM) - full system
+# full system on a GPU node (SLURM) - never on the login node
 srun --gres=gpu:1 --cpus-per-task=32 --mem=160G bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
-# CPU only - same pipeline without the LLM stage
-TERMMAP_TAG=_d3 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
+# CPU-only fallback (no GPU needed at all)
+TERMMAP_TAG=_sap4 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
 ```
 
+| `TERMMAP_TAG` | components | hardware at inference |
+|---|---|---|
+| `_sap4` | lexical + SapBERT + training memory, stage-1 LambdaRank | CPU, ~0.2 s/term |
+| `_d3` | + gte-base + Qwen3-Embedding signals | CPU ok |
+| `_d3ce` | + fine-tuned cross-encoder over the shortlist | CPU ok, GPU faster |
+| `_d3llm` (default) | + Qwen2.5-7B-Instruct listwise scores | GPU ≥ 24 GB |
+| `_d3llm14` | + Qwen2.5-14B-Instruct instead of 7B | GPU ≥ 40 GB |
+
 `run_all.sh` is idempotent: it builds the dense indexes, trains the rankers
-(and LLM-scores the training shortlists) only if the artifacts are missing, then
+(and cross-encoder / LLM training scores) only if the artifacts are missing, then
 maps the input. The input may use the training layout
 (`entity, chunk_text, coding_system, subconcept`) or the brief's layout
-(`chunk_id, clinical_entity[, chunk_text]`). Output has, for **every row**,
+(`chunk_id, clinical_entity[, chunk_text]`); a missing `subconcept` is inferred
+by a small classifier (82% CV accuracy). Output has, for **every row**,
 `icd10cm_code`, `snomed_code`, descriptions, calibrated confidences, margins and
 top-5 alternatives; when the input names a `coding_system` per row, `code`
-holds that system's prediction. `--brief` on `predict.py` keeps only the
-deliverable schema columns.
+holds that system's prediction. `predict.py --brief` keeps only the input
+columns plus `icd10cm_code` / `snomed_code` (the deliverable schema).
 
 Individual steps:
 
@@ -116,7 +139,7 @@ python scripts/llm_score_train.py --tag _d3                    # GPU
 python scripts/train.py --dense sapbert gte qwen3 --tag _d3llm --feats-tag _d3 \
        --llm $TERMMAP_ARTIFACTS_DIR/llm_scores_train_d3.parquet
 python scripts/predict.py --input X.csv --output Y.csv --tag _d3llm --llm-model Qwen/Qwen2.5-7B-Instruct
-python scripts/demo.py --tag _d3                                # hard-case walkthrough
+python scripts/demo.py --tag _sap4 [--interactive]              # hard-case walkthrough
 ```
 
 ## Determinism

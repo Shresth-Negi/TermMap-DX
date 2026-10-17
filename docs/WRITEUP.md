@@ -86,11 +86,110 @@ co-occurrence) are **leave-one-out**: a term is never scored against its own lab
 scores feeding stage 2 are out-of-fold. Early stopping uses an inner fold, never the evaluation
 fold. Exact-match accuracy is reported per system; the headline is the lower of the two.
 
-RESULTS_SECTION
+## 4. Results
+
+All numbers are 5-fold CV exact match on the 9,646 labelled rows. GPU-stage rows (extra encoders, cross-encoder, LLM) are added when that run completes.
+
+**Headline (configuration `_sap4`):** ICD-10-CM **0.658**, SNOMED CT **0.507** → min **0.507**.
+
+| metric | ICD-10-CM | SNOMED CT |
+|---|---|---|
+| exact match (5-fold CV) | **0.658** | **0.507** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.527 | 0.438 |
+| accuracy on the 70% most confident | 0.778 | 0.617 |
+| same 3-character category (ICD partial credit) | 0.762 | – |
+| label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
+
+**Ablation** (each row adds one component; the configuration in bold is the submitted one):
+
+| configuration | ICD-10-CM | SNOMED CT | headline (min) | SNOMED, diagnoses only | candidate recall ICD / SNOMED |
+|---|---|---|---|---|---|
+| Lexical retrieval + ranker | 0.569 | 0.440 | 0.440 | 0.531 | 0.835 / 0.797 |
+| + SapBERT dense retrieval | 0.655 | 0.500 | 0.500 | 0.598 | 0.922 / 0.878 |
+| + context / negation / numeric features | 0.653 | 0.504 | 0.504 | 0.600 | 0.922 / 0.878 |
+| + contextual kNN, wider candidate pools | 0.655 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
+| **+ official ICD titles (CPU-only final)** | **0.658** | **0.507** | **0.507** | 0.604 | 0.929 / 0.889 |
+
+![ablation](figures/ablation.png)
+
 
 ## 5. Error analysis
 
-ERROR_SECTION
+Numbers in this section are from out-of-fold predictions of the configuration in the headline
+row (`outputs/error_analysis_<tag>.md` has the full tables and sampled errors per failure mode).
+
+**The labels set a ceiling well below 95%.** We measured how consistently the gold labels treat
+near-identical terms. Training pairs that are identical after normalising case, punctuation,
+plurals and word order get the *same* gold code only **92.5% of the time in ICD-10-CM and
+66.8% in SNOMED CT**. For nearest-neighbour pairs with character cosine ≥ 0.95 the figures are
+93.7% and 75.8%. Example: "diabetes mellitus type 2" → *Type 2 diabetes mellitus*, but
+"type 2 diabetes mellitus with other specified complication…" → *Disorder associated with
+diabetes mellitus*, and the three "icd-10-cm" variants map to two different reference sets.
+Under these labels, any deterministic system is capped at roughly 75% SNOMED exact match. Our
+SNOMED gap is therefore half annotation convention, half model error. **Closing it needs
+convention consolidation as much as modelling** (see §8).
+
+**Failure modes** (share of all rows):
+
+| failure mode | ICD-10-CM | SNOMED CT |
+|---|---|---|
+| correct | 0.658 | 0.507 |
+| retrieval_miss | 0.099 | 0.167 |
+| semantic-type mismatch (e.g. finding vs procedure) | – | 0.164 |
+| wrong concept, same semantic type | – | 0.151 |
+| specificity (same 3-char category) | 0.086 | – |
+| wrong concept, other chapter | 0.084 | – |
+| wrong concept, same chapter | 0.057 | – |
+| laterality | 0.016 | 0.010 |
+
+* *Retrieval misses* are mostly paraphrases with no lexical overlap and a convention target:
+  "could not df her ankle well" → R29.898, "hemodynamic instability" → R09.89. They are also
+  colloquialisms ("belly is swollen" → R19.00).
+* *Specificity* errors (ICD, same 3-character category) are dominated by residual-code
+  conventions: "nasal dyspnea" → R06.89 (other) vs R06.00 (unspecified); "lymphadenopathy" →
+  R59.1 (generalised) vs R59.9; "alcohol dependence" → F10.20 vs F10.29. The predicted code is in the right
+  3-character category 76% of the time (right chapter 85%); the leaf choice is where
+  convention bites.
+* *Semantic-type mismatch* (SNOMED) is the largest SNOMED-specific failure. The same name
+  exists as a procedure, an observable and a finding ("inr", "full mask cpap", "acute rash"
+  → *Acute eruption of skin* vs *Eruption*). The entity's subconcept helps, but the training
+  convention is not uniform.
+* *Laterality* errors are rare (≈1%) thanks to explicit laterality match/conflict features.
+
+**Long tail.** Accuracy falls with how often the gold code was seen elsewhere in training:
+
+| gold code seen elsewhere in training | ICD-10-CM acc (n) | SNOMED CT acc (n) |
+|---|---|---|
+| unseen (0) | 0.378 (466) | 0.360 (2964) |
+| rare (1-2) | 0.661 (517) | 0.539 (2308) |
+| mid (3-9) | 0.730 (899) | 0.675 (1764) |
+| frequent (10+) | 0.811 (424) | 0.724 (304) |
+
+Unseen-code accuracy is about half the frequent-code accuracy in both systems. The engine still
+maps a third of never-seen codes exactly, purely from dictionary retrieval plus learned
+convention features. This is the number that best predicts production behaviour.
+
+**By entity type (SNOMED).** Device 0.439 (n=437), DiagnosisCode 0.604 (n=2700), EncounterType 0.510 (n=567), LabService 0.462 (n=858), ProcedureCode 0.437 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.659 on diagnoses.
+
+**Abbreviation collisions.** Bare ambiguous abbreviations are only 182 training rows (1.9%).
+ICD gets 75% of them right, SNOMED 46%. The context-conditioned reading score identifies the
+right reading (e.g. "MS" + "mitral valve area" → mitral stenosis 0.46 vs multiple sclerosis
+0.27), but with so few collision examples in training the ranker under-uses it. When a
+neighbour shares the exact abbreviation ("ra" → *Breathing room air* from "hypoxic on ra"), the
+house convention wins over context. These cases come out with low calibrated confidence and are
+routed to review. The LLM stage, which reads the context, is the component that fixes them.
+
+**Calibrated abstention.** Confidence is isotonic-calibrated on out-of-fold margins:
+
+| coverage (most confident first) | ICD-10-CM | SNOMED CT |
+|---|---|---|
+| 100% | 0.658 | 0.507 |
+| 97% | 0.670 | 0.516 |
+| 90% | 0.700 | 0.541 |
+| 80% | 0.737 | 0.576 |
+| 70% | 0.778 | 0.617 |
+| 50% | 0.853 | 0.716 |
+
 
 ## 6. Design decisions and why
 
@@ -133,7 +232,28 @@ ERROR_SECTION
 
 ## 8. Plan for the remaining gap
 
-NEXT_SECTION
+1. **Consolidate the convention, then measure against it.** With SNOMED self-agreement at
+   67–76% on near-duplicates, the most valuable next step is adjudicating the ~250 conflicting
+   near-duplicate groups we surface automatically (`error_analysis.py`) and writing a short
+   coding guideline: preferred granularity, residual "other" vs "unspecified", and procedure vs
+   observable for labs. Re-labelling those groups also raises the achievable ceiling.
+2. **SNOMED hierarchy.** The supplied export has no IS-A relationships. With the RF2 release
+   (licensed via UMLS/NLM), we would add ancestor/descendant features and hierarchical partial
+   credit, and turn "right concept, wrong granularity" into an explicit choice, as we already do
+   for ICD categories.
+3. **Contrastively fine-tuned retriever.** Fine-tune SapBERT on gold (term, description) pairs
+   with in-batch hard negatives from our shortlists. That targets the retrieval misses
+   (10% ICD, 17% SNOMED), which no reranker can recover.
+4. **LLM only where it pays.** Route the least-confident ~30% of terms to a larger local
+   model with the full shortlist and retrieved examples. The other 70% are already at
+   75–80% accuracy and cost ~0.2 s/term on CPU.
+5. **Version drift.** Dictionaries are inputs, not code. A new ICD-10-CM (October) or SNOMED
+   (biannual) release only needs `build_index.py` plus `train.py` (≈20 min on one GPU). Codes
+   deleted in a release can be remapped with the CMS GEM / conversion tables before retraining,
+   and training labels that point at retired codes are flagged by the dictionary check that
+   already exists (two gold ICD codes in the training file, e.g. `L6.0`, are not in the
+   dictionary).
+
 
 ## 9. External resources
 

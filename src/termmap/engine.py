@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from . import ranker
-from .corpus import SYSTEMS
+from .corpus import SYSTEMS, description_map
 from .encoders import Encoder, set_threads
 from .features import QueryEncoder
 from .io import load_train
@@ -55,10 +55,7 @@ class Engine:
                 self.ce = {s: CrossEncoder(str(ARTIFACTS / f"ce_{s}{t}")) for s in SYSTEMS}
         self.desc, self.calib = {}, {}
         for s in SYSTEMS:
-            e = self.res[s].entries
-            if s == "SNOMEDCT_US":
-                e = e.sort_values("order", kind="stable")
-            self.desc[s] = e.drop_duplicates("code").set_index("code")["description"].to_dict()
+            self.desc[s] = description_map(s)
             cp = ARTIFACTS / f"calib_{s}{tag}.json"
             if cp.exists():
                 self.calib[s] = json.loads(cp.read_text())
