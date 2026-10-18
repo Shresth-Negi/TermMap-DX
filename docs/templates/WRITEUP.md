@@ -117,7 +117,7 @@ plurals and word order get the *same* gold code only **92.5% of the time in ICD-
 diabetes mellitus*, and the three "icd-10-cm" variants map to two different reference sets.
 Under these labels, any deterministic system is capped at roughly 75% SNOMED exact match. Our
 SNOMED gap is therefore half annotation convention, half model error. **Closing it needs
-convention consolidation as much as modelling** (see §8).
+convention consolidation as much as modelling** (see §10).
 
 **Failure modes** (share of all rows):
 
@@ -209,7 +209,45 @@ COVERAGE_TABLE
 * **Official SNOMED→ICD map / UMLS.** Not used (licence-gated, and the brief notes the map
   cannot be ground truth). A data-driven co-occurrence prior replaces it.
 
-## 8. Plan for the remaining gap
+## 8. Innovations
+
+* **A measured label ceiling.** Self-agreement of the gold labels on near-duplicate terms
+  (§5) turns "95%" from a target into a diagnosable gap: it separates annotation convention
+  from model error, and it lists the conflicting groups for adjudication.
+* **The dictionary teaches its own abbreviations.** 7.7k `ABBR - Expansion` descriptions in the
+  supplied SNOMED export become the abbreviation lexicon. There is no external resource and it
+  is versioned with the dictionary.
+* **SNOMED as a thesaurus for ICD.** SNOMED preferred terms of the best dense matches become
+  ICD query variants, bridging lay or clinical phrasing to ICD's terse titles.
+* **Training memory as a retriever with hierarchy-aware votes.** Leave-one-out neighbour
+  votes at the code *and* the ICD 3-character-category level make specificity an explicit,
+  learned decision. A contextual variant (entity × context similarity) down-weights
+  neighbours from a different clinical setting.
+* **Coupled, not crosswalked.** Each system is predicted on its own. Cross-system evidence
+  (leave-one-out co-occurrence, shortlist-to-shortlist similarity) only enters stage 2.
+* **Deterministic LLM judgement.** One forward pass, letter log-probabilities over a
+  10-option shortlist, with the five nearest *coded* examples in the prompt so the model sees
+  the house convention. No sampling, no parsing, and a calibrated ranker decides how much to
+  trust it.
+* **Abstention built in.** Out-of-fold isotonic calibration plus CV-based stage selection give
+  each prediction a usable P(correct); the coverage table in §5 shows the trade-off.
+
+## 9. Challenges and learnings
+
+* **The data did not match the brief.** It is long-format with one row per system, includes
+  non-diagnosis SNOMED entity types, and has no released evaluation input. We built the engine
+  to accept both layouts and to always emit both systems.
+* **Compute constraints shaped the design.** On a shared node every GPU was allocated for
+  hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
+  therefore built CPU-first, with every GPU step an optional, cached add-on that runs
+  unattended under SLURM. A useful side effect is a complete CPU-only fallback (`_sap4`).
+* **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
+  nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
+  then the cross-encoder, then the LLM.
+* **Stage 2 must earn its place.** Without new evidence a second ranker slightly *hurt*. That
+  is why stage selection is decided per system on out-of-fold accuracy.
+
+## 10. Plan for the remaining gap
 
 1. **Consolidate the convention, then measure against it.** With SNOMED self-agreement at
    67–76% on near-duplicates, the most valuable next step is adjudicating the ~250 conflicting
@@ -234,7 +272,7 @@ COVERAGE_TABLE
    dictionary).
 
 
-## 9. External resources
+## 11. External resources
 
 | resource | version / id | use | licence |
 |---|---|---|---|

@@ -1,0 +1,18 @@
+chunk_id,entity,chunk_text,coding_system,subconcept
+s1,HTN,"PMH: HTN, HLD, DM2 on metformin",ICD10CM,DiagnosisCode
+s1,HTN,"PMH: HTN, HLD, DM2 on metformin",SNOMEDCT_US,DiagnosisCode
+s2,MS,"Echo: severe MS, mitral valve area 0.9 cm2, rheumatic mitral valve disease",ICD10CM,DiagnosisCode
+s3,MS,"Neurology follow-up for relapsing remitting MS on ocrelizumab, new demyelinating lesions on MRI",ICD10CM,DiagnosisCode
+s4,chronickidney disease stag 3,"Assessment: chronickidney disease stag 3, creatinine 1.6, eGFR 41",ICD10CM,DiagnosisCode
+s4,chronickidney disease stag 3,"Assessment: chronickidney disease stag 3, creatinine 1.6, eGFR 41",SNOMEDCT_US,DiagnosisCode
+s5,diabetes,"PMH: diabetes, on metformin",ICD10CM,DiagnosisCode
+s6,type 2 dm with diabetic nephropathy,"A/P: type 2 dm with diabetic nephropathy, UACR 450",ICD10CM,DiagnosisCode
+s7,left knee oa,"XR: severe left knee OA, tricompartmental",ICD10CM,DiagnosisCode
+s7,left knee oa,"XR: severe left knee OA, tricompartmental",SNOMEDCT_US,DiagnosisCode
+s8,h/o dvt,"PMH: h/o DVT 2015, completed anticoagulation",ICD10CM,DiagnosisCode
+s9,sob,"Pt c/o SOB on exertion x 2 weeks",SNOMEDCT_US,DiagnosisCode
+s10,pulmonary htn,"Echo: RVSP 55 mmHg, moderate pulmonary HTN",ICD10CM,DiagnosisCode
+s11,afib w rvr,"Cardiology: afib w RVR, rate 140, started diltiazem drip",ICD10CM,DiagnosisCode
+s12,hemoglobin a1c,"Labs: hemoglobin A1c 8.2 %",SNOMEDCT_US,LabService
+s13,rolling walker,"DME: rolling walker for ambulation",SNOMEDCT_US,Device
+s14,physical therapy evaluation,"Plan: physical therapy evaluation and treatment",SNOMEDCT_US,ProcedureCode

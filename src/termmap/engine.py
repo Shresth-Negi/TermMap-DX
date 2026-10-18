@@ -57,7 +57,7 @@ class Engine:
         self.desc, self.calib, self.model_desc = {}, {}, {}
         for s in SYSTEMS:
             self.desc[s] = description_map(s)
-            self.model_desc[s] = description_map(s, with_semtag=True)  # what the CE / LLM were trained on
+            self.model_desc[s] = description_map(s, model_input=True)  # what the CE / LLM were trained on
             cp = ARTIFACTS / f"calib_{s}{tag}.json"
             if cp.exists():
                 self.calib[s] = json.loads(cp.read_text())
