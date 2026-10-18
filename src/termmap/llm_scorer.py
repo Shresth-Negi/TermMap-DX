@@ -57,8 +57,10 @@ class LLMScorer:
         self.tok.padding_side = "left"
         if self.tok.pad_token is None:
             self.tok.pad_token = self.tok.eos_token
-        dtype = torch.bfloat16 if device == "cuda" else torch.float32
-        self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype=dtype).to(device).eval()
+        if device == "cuda":  # load straight onto the GPU (no CPU copy of the weights)
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.bfloat16, device_map="cuda").eval()
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.float32).eval()
         self.device = device
         self.letter_ids = [self.tok.encode(l, add_special_tokens=False)[0] for l in LETTERS]
 

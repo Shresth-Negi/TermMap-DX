@@ -22,7 +22,10 @@ MODELS = {
 
 
 class Encoder:
-    def __init__(self, name: str, device: str | None = None, path: str | None = None):
+    def __init__(self, name: str, device: str | None = None, path: str | None = None, half: bool = False):
+        """half=True (dictionary index building on a GPU only) trades precision for speed. Queries
+        always run in fp32: in half precision an embedding shifts by up to ~4e-3 with the other texts
+        in its batch, which would make a term's result depend on its neighbours in the input file."""
         repo, self.pooling, self.max_len, self.prefix = MODELS[name]
         self.name = name
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,9 +33,11 @@ class Encoder:
         self.tok = AutoTokenizer.from_pretrained(src)
         if self.pooling == "last":
             self.tok.padding_side = "left"
-        self.model = AutoModel.from_pretrained(src).to(self.device).eval()
-        if self.device == "cuda":  # Qwen3 is trained in bf16; BERT-style encoders are fine in fp16
+        # explicit fp32: transformers 5 would otherwise load Qwen3 in its native bf16, even on CPU
+        self.model = AutoModel.from_pretrained(src, dtype=torch.float32).to(self.device).eval()
+        if half and self.device == "cuda":  # Qwen3 is trained in bf16; BERT-style encoders are fine in fp16
             self.model = self.model.to(torch.bfloat16 if self.pooling == "last" else torch.float16)
+        self.precision = str(next(self.model.parameters()).dtype).replace("torch.", "")
 
     @torch.inference_mode()
     def encode(self, texts: list[str], batch_size: int = 512, show: bool = False, query: bool = False) -> np.ndarray:

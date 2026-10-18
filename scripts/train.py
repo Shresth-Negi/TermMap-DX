@@ -35,6 +35,8 @@ ap.add_argument("--rebuild", action="store_true")
 ap.add_argument("--folds", type=int, default=5)
 ap.add_argument("--llm", default="", help="parquet of LLM shortlist scores (system,key,code,llm_lp)")
 ap.add_argument("--llm-model-id", default="Qwen/Qwen2.5-7B-Instruct", help="LLM that produced --llm (recorded for inference)")
+ap.add_argument("--fallback-tag", default="",
+                help="model set the engine uses instead when this one's LLM cannot run (no GPU / memory)")
 ap.add_argument("--extra", nargs="*", default=[],
                 help="more shortlist score files (system,key,code,<feature...>), e.g. cross-encoder scores")
 ap.add_argument("--tag", default="")
@@ -54,7 +56,7 @@ keys[["key", "entity", "chunk_text", "subconcept"]].assign(fold=fold_of_key).to_
 
 (ARTIFACTS / f"config{T}.json").write_text(json.dumps({"dense": args.dense, "bridge": args.bridge,
                                                        "llm": bool(args.llm), "llm_model": args.llm_model_id if args.llm else "",
-                                                       "extra": args.extra}))
+                                                       "extra": args.extra, "fallback": args.fallback_tag}))
 qenc = QueryEncoder({m: Encoder(m) for m in args.dense})
 res, S, gold, report, acc1_of = {}, {}, {}, {}, {}
 

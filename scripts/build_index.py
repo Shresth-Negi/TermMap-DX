@@ -21,8 +21,12 @@ args = ap.parse_args()
 set_threads()
 
 for m in args.models:
-    enc = Encoder(m)
-    for sys_ in args.systems:
+    todo = [s for s in args.systems if args.limit or not (ARTIFACTS / f"emb_{m}_{s}.npy").exists()]
+    if not todo:
+        print(f"skip {m}: indexes exist")
+        continue
+    enc = Encoder(m, half=True)
+    for sys_ in todo:
         out = ARTIFACTS / f"emb_{m}_{sys_}.npy"
         if out.exists() and not args.limit:
             print("skip", out)

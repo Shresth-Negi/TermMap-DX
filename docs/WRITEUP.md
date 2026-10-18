@@ -74,14 +74,25 @@ system's shortlist, weighted by its probabilities. In the GPU configuration, sta
 type, the five most similar *already-coded* training terms with their codes, and the top-10
 candidates as lettered options. One forward pass gives the log-probability of each option
 letter: no generation, no sampling, deterministic. A fine-tuned **cross-encoder** (SapBERT
-initialisation, listwise loss over the shortlist, 5-fold out-of-fold) adds a learned
-semantic-match score. Both models see SNOMED options with their semantic tag
+initialisation, listwise loss over the top-16 shortlist, 4 epochs, 5-fold out-of-fold) adds a
+learned semantic-match score. Going from 2 to 4 epochs raised its own top-1 within the shortlist
+from about 50% to 60% (ICD), and the system’s SNOMED accuracy by 0.5–0.8 pt. Both models see SNOMED options with their semantic tag
 ("International normalized ratio [observable entity]").
 
 **Stage selection and calibration.** Per system, stage 2 is used only if it beats stage 1 out of
 fold; without new evidence (no cross-encoder or LLM) it does not, and stage 1 is kept. Isotonic
 regression on the out-of-fold margin of the selected stage turns ranker scores into P(correct),
 which is reported as `confidence`.
+
+**Robust, reproducible inference.** Model sets form a ladder trained on the same folds:
+`_d3llm14e4 → _d3llm7e4 → _d3ce4`. Before loading an LLM the engine compares the GPU's free
+memory with the model's weight size. If it cannot run (no GPU, a shared GPU without room, out of
+memory while loading), it falls back to the next set and prints which set ran and why. We found
+this the hard way: our first GPU validation crashed because two other users' processes held
+33 GB of the card we were allocated. Query encoders always run in fp32 (half precision made an
+embedding depend on its batch neighbours by up to 4e-3). Training-memory embeddings are cached
+outside the query cache, so the same input gives byte-identical output on the first run and
+every run after.
 
 ## 3. Evaluation protocol (no leakage)
 
@@ -96,14 +107,14 @@ fold. Exact-match accuracy is reported per system; the headline is the lower of 
 
 All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_sap4` run entirely on CPU.
 
-**Headline (configuration `_d3llm14`):** ICD-10-CM **0.705**, SNOMED CT **0.576** → min **0.576**.
+**Headline (configuration `_d3llm14e4`):** ICD-10-CM **0.708**, SNOMED CT **0.582** → min **0.582**.
 
 | metric | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| exact match (5-fold CV) | **0.705** | **0.576** |
-| long tail: gold code seen ≤ 2× elsewhere in train | 0.572 | 0.514 |
-| accuracy on the 70% most confident | 0.787 | 0.692 |
-| same 3-character category (ICD partial credit) | 0.810 | – |
+| exact match (5-fold CV) | **0.708** | **0.582** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.587 | 0.518 |
+| accuracy on the 70% most confident | 0.826 | 0.694 |
+| same 3-character category (ICD partial credit) | 0.812 | – |
 | label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
 
 **Ablation** (each row adds one component; the configuration in bold is the submitted one):
@@ -114,11 +125,12 @@ All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_s
 | + SapBERT dense retrieval | 0.655 | 0.500 | 0.500 | 0.598 | 0.922 / 0.878 |
 | + context / negation / numeric features | 0.653 | 0.504 | 0.504 | 0.600 | 0.922 / 0.878 |
 | + contextual kNN, wider candidate pools | 0.655 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
-| + official ICD titles (CPU-only set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
+| + official ICD titles (fully CPU set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
 | + gte-base + Qwen3-Embedding signals | 0.666 | 0.515 | 0.515 | 0.614 | 0.942 / 0.915 |
-| + fine-tuned cross-encoder | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
-| + Qwen2.5-7B listwise LLM scores | 0.702 | 0.562 | 0.562 | 0.655 | 0.942 / 0.915 |
-| **Qwen2.5-14B instead of 7B (final)** | **0.705** | **0.576** | **0.576** | 0.670 | 0.942 / 0.915 |
+| + fine-tuned cross-encoder, 2 epochs | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
+| cross-encoder trained 4 epochs (no-LLM set) | 0.684 | 0.543 | 0.543 | 0.638 | 0.942 / 0.915 |
+| + Qwen2.5-7B listwise LLM scores | 0.702 | 0.567 | 0.567 | 0.656 | 0.942 / 0.915 |
+| **Qwen2.5-14B instead of 7B (default)** | **0.708** | **0.582** | **0.582** | 0.669 | 0.942 / 0.915 |
 
 ![ablation](figures/ablation.png)
 
@@ -128,9 +140,11 @@ All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_s
 Measured on the shared node (AMD EPYC 9554, 16 threads, no GPU) for the CPU model set `_sap4`,
 mapping both systems per term: **50 ms/term in batch (≈72k terms/hour)**, single-term latency
 331 ms median / 372 ms p95, 64 s cold start, 16 GB RAM (dense indexes held as float32). The
-cross-encoder adds ~1.5 ms/term on a GPU. The LLM stage costs one ~700-token forward pass per
-term per system (measured, batched on one RTX 6000 Ada: 82 ms/term per system with Qwen2.5-7B; about 250 ms with Qwen2.5-14B, measured while the GPU was shared with a training job). It is the only component
-that needs a GPU at inference, and it can be limited to low-confidence terms.
+no-LLM set `_d3ce4` (three encoders plus the cross-encoder, all on CPU) runs at **~0.78 s/term**
+with a 32 s cold start once the training-memory embeddings are cached (about 10 minutes on the
+very first run), in ~17 GB RAM. The LLM stage costs one ~700-token forward pass per term per
+system (measured on one RTX 6000 Ada while scoring the training shortlists in batches: 71–82 ms/term per system with Qwen2.5-7B, 250–280 ms with Qwen2.5-14B on a GPU shared with another training job). It is the only component that needs a GPU at inference, and it could be
+limited to low-confidence terms.
 
 ## 5. Error analysis
 
@@ -152,14 +166,14 @@ convention consolidation as much as modelling** (see §10).
 
 | failure mode | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| correct | 0.705 | 0.576 |
+| correct | 0.708 | 0.582 |
 | retrieval_miss | 0.087 | 0.149 |
-| semantic-type mismatch (e.g. finding vs procedure) | – | 0.135 |
-| wrong concept, same semantic type | – | 0.132 |
-| specificity (same 3-char category) | 0.085 | – |
-| wrong concept, other chapter | 0.065 | – |
+| semantic-type mismatch (e.g. finding vs procedure) | – | 0.133 |
+| wrong concept, same semantic type | – | 0.129 |
+| specificity (same 3-char category) | 0.084 | – |
+| wrong concept, other chapter | 0.062 | – |
 | wrong concept, same chapter | 0.048 | – |
-| laterality | 0.010 | 0.008 |
+| laterality | 0.011 | 0.008 |
 
 * *Retrieval misses* are mostly paraphrases with no lexical overlap and a convention target:
   "could not df her ankle well" → R29.898, "hemodynamic instability" → R09.89. They are also
@@ -179,16 +193,16 @@ convention consolidation as much as modelling** (see §10).
 
 | gold code seen elsewhere in training | ICD-10-CM acc (n) | SNOMED CT acc (n) |
 |---|---|---|
-| unseen (0) | 0.431 (466) | 0.439 (2964) |
-| rare (1-2) | 0.698 (517) | 0.611 (2308) |
-| mid (3-9) | 0.793 (899) | 0.731 (1764) |
-| frequent (10+) | 0.828 (424) | 0.757 (304) |
+| unseen (0) | 0.457 (466) | 0.443 (2964) |
+| rare (1-2) | 0.704 (517) | 0.614 (2308) |
+| mid (3-9) | 0.782 (899) | 0.739 (1764) |
+| frequent (10+) | 0.833 (424) | 0.770 (304) |
 
 Unseen-code accuracy is about half the frequent-code accuracy in both systems. The engine still
 maps a third of never-seen codes exactly, purely from dictionary retrieval plus learned
 convention features. This is the number that best predicts production behaviour.
 
-**By entity type (SNOMED).** Device 0.538 (n=437), DiagnosisCode 0.670 (n=2700), EncounterType 0.586 (n=567), LabService 0.536 (n=858), ProcedureCode 0.502 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.705 on diagnoses.
+**By entity type (SNOMED).** Device 0.545 (n=437), DiagnosisCode 0.669 (n=2700), EncounterType 0.591 (n=567), LabService 0.566 (n=858), ProcedureCode 0.506 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.709 on diagnoses.
 
 **Abbreviation collisions.** Bare ambiguous abbreviations are only 182 training rows (1.9%).
 ICD gets 75% of them right, SNOMED 46%. The context-conditioned reading score identifies the
@@ -202,12 +216,12 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 
 | coverage (most confident first) | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| 100% | 0.705 | 0.576 |
-| 97% | 0.722 | 0.586 |
-| 90% | 0.747 | 0.612 |
-| 80% | 0.773 | 0.650 |
-| 70% | 0.787 | 0.692 |
-| 50% | 0.846 | 0.774 |
+| 100% | 0.708 | 0.582 |
+| 97% | 0.721 | 0.591 |
+| 90% | 0.749 | 0.617 |
+| 80% | 0.788 | 0.655 |
+| 70% | 0.826 | 0.694 |
+| 50% | 0.881 | 0.762 |
 
 
 ## 6. Design decisions and why
@@ -290,8 +304,9 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 * **Compute constraints shaped the design.** On a shared node every GPU was allocated for
   hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
   therefore built CPU-first, with every GPU step an optional, cached add-on that runs
-  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce` (68.3% / 53.5%) needs
-  a GPU only to build its indexes once, and only the LLM sets need a GPU at inference.
+  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce4` (68.4% /
+  54.3%) needs a GPU only to build its indexes and cross-encoder once, and only the LLM sets
+  need a GPU at inference. The engine falls back down the ladder automatically.
 * **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
   nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
   then the cross-encoder, then the LLM.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -19,18 +20,40 @@ from .pipeline import (Coupler, add_extra_features, attach_keys, bridge_variants
 from .resources import SystemResources
 
 KEY_OFFSET = 10_000_000  # inference keys never collide with training keys
+LLM_HEADROOM_GB = 3.0  # activations + CUDA context on top of the weights
+
+
+def _config(tag: str) -> dict:
+    p = ARTIFACTS / f"config{tag}.json"
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+def _weights_gb(model_id: str) -> float | None:
+    """Size of the model's safetensors in the local Hugging Face cache (None if not downloaded)."""
+    hub = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")) / "hub"
+    files = list((hub / ("models--" + model_id.replace("/", "--")) / "snapshots").glob("*/*.safetensors"))
+    return sum(f.stat().st_size for f in files) / 2**30 if files else None
+
+
+def _llm_fits(model_id: str) -> tuple[bool, str]:
+    import torch
+    if not torch.cuda.is_available():
+        return False, "no CUDA device"
+    need = _weights_gb(model_id)
+    free = torch.cuda.mem_get_info()[0] / 2**30
+    if need is not None and free < need + LLM_HEADROOM_GB:
+        return False, f"{model_id} needs ~{need + LLM_HEADROOM_GB:.0f} GB, {free:.0f} GB free on the GPU"
+    return True, ""
 
 
 class Engine:
     def __init__(self, dense: tuple[str, ...] = ("sapbert",), tag: str = "", verbose: bool = True,
                  llm_model: str = "", llm_shots: int = 5):
         set_threads()
-        cfg_path = ARTIFACTS / f"config{tag}.json"
-        cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {"dense": list(dense), "bridge": 1}
+        cfg = _config(tag) or {"dense": list(dense), "bridge": 1}
         dense = tuple(cfg["dense"])  # inference must use exactly the training configuration
         self.bridge = bool(cfg.get("bridge", 1))
-        self.final_stage = cfg.get("final_stage", {})
-        self.tag, self.dense, self.verbose = tag, dense, verbose
+        self.requested_tag, self.dense, self.verbose, self.llm_shots = tag, dense, verbose, llm_shots
         self.qenc = QueryEncoder({m: Encoder(m) for m in dense})
         tr = load_train()
         keys = make_keys(tr)
@@ -39,14 +62,48 @@ class Engine:
         self.res = {s: SystemResources(s, dense_models=dense) for s in SYSTEMS}
         self.mem = {s: build_memory(tr, s, self.qenc, dense) for s in SYSTEMS}
         self.coupler = Coupler(tr, self.res)
+        self.desc = {s: description_map(s) for s in SYSTEMS}
+        self.model_desc = {s: description_map(s, model_input=True) for s in SYSTEMS}  # what the CE / LLM saw
+        self._load_model_set(tag, cfg, llm_model)
+
+    def _load_model_set(self, tag: str, cfg: dict, llm_model: str = ""):
+        """Load the tag-specific parts (rankers, calibration, cross-encoder, LLM). A tag whose LLM
+        cannot run here (no GPU, not enough free memory, OOM while loading) falls back along
+        cfg["fallback"] to a model set trained without it, so a shared GPU never breaks a run."""
+        self.fallback_reason = ""
+        while True:
+            llm_id = llm_model or cfg.get("llm_model", "")
+            final_stage = cfg.get("final_stage", {})
+            needs_s2 = any(final_stage.get(s, 2) == 2 for s in SYSTEMS)  # stage-2 extras only if used
+            self.llm, why = None, ""
+            if cfg.get("llm") and llm_id and needs_s2:
+                ok, why = _llm_fits(llm_id)
+                if ok:
+                    try:
+                        from .llm_scorer import LLMScorer
+                        self.llm = LLMScorer(llm_id)
+                    except RuntimeError as e:  # torch.OutOfMemoryError is a RuntimeError
+                        if "out of memory" not in str(e).lower():
+                            raise
+                        import gc
+
+                        import torch
+                        gc.collect()
+                        torch.cuda.empty_cache()
+                        why = f"out of GPU memory while loading {llm_id}"
+                if self.llm is None:
+                    nxt = cfg.get("fallback")
+                    if not nxt:
+                        raise RuntimeError(f"model set {tag} needs {llm_id} but {why}; pick a non-LLM tag")
+                    self._log(f"[engine] {tag}: {why} -> falling back to {nxt}")
+                    self.fallback_reason += ("; " if self.fallback_reason else "") + f"{tag}: {why}"
+                    tag, cfg, llm_model = nxt, _config(nxt), ""
+                    assert tuple(cfg["dense"]) == self.dense, "fallback must share the dense configuration"
+                    continue
+            break
+        self.tag, self.final_stage = tag, final_stage
         self.s1 = {s: ranker.load(s, "_s1" + tag) for s in SYSTEMS}
         self.s2 = {s: ranker.load(s, "_s2" + tag) for s in SYSTEMS}
-        self.llm, self.llm_shots = None, llm_shots
-        llm_model = llm_model or cfg.get("llm_model", "")
-        needs_s2 = any(self.final_stage.get(s, 2) == 2 for s in SYSTEMS)  # stage-2 extras only if used
-        if cfg.get("llm") and llm_model and needs_s2:
-            from .llm_scorer import LLMScorer
-            self.llm = LLMScorer(llm_model)
         self.ce = {}
         for p in (cfg.get("extra", []) if needs_s2 else []):
             name = Path(p).name
@@ -54,13 +111,12 @@ class Engine:
                 from .cross_encoder import CrossEncoder
                 t = name[len("ce_scores_train"):-len(".parquet")]
                 self.ce = {s: CrossEncoder(str(ARTIFACTS / f"ce_{s}{t}")) for s in SYSTEMS}
-        self.desc, self.calib, self.model_desc = {}, {}, {}
+        self.calib = {}
         for s in SYSTEMS:
-            self.desc[s] = description_map(s)
-            self.model_desc[s] = description_map(s, model_input=True)  # what the CE / LLM were trained on
             cp = ARTIFACTS / f"calib_{s}{tag}.json"
             if cp.exists():
                 self.calib[s] = json.loads(cp.read_text())
+        self._log(f"[engine] model set {tag}" + (f" with {llm_id}" if self.llm else " (no LLM)"))
 
     def _log(self, *a):
         if self.verbose:

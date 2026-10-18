@@ -20,7 +20,7 @@ annotators' convention from labelled neighbours, rather than memorising terms.
 3. **Rank (stage 1):** LightGBM LambdaRank over ~85 features per candidate. Every signal
    scores every candidate, plus laterality, numbers/stage, specificity, semantic type × entity
    type, and code- and category-level neighbour votes.
-4. **Re-rank (stage 2):** a fine-tuned cross-encoder, local **Qwen2.5-14B listwise
+4. **Re-rank (stage 2):** a fine-tuned cross-encoder (4 epochs), local **Qwen2.5-14B listwise
    log-probabilities** (one forward pass over a 10-option shortlist, with 5 retrieved coded
    examples in the prompt; deterministic) and ICD↔SNOMED coupling features.
 5. **Output:** both codes for every row, isotonic-calibrated confidence and top-5
@@ -30,15 +30,18 @@ annotators' convention from labelled neighbours, rather than memorising terms.
 
 | | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| **exact match** | **0.705** | **0.576** (diagnoses only: 0.670) |
-| gold code unseen in training / seen 1–2× | 0.431 / 0.698 | 0.439 / 0.611 |
-| 50% most confident terms | 0.846 | 0.774 |
-| right 3-character category | 0.810 | – |
+| **exact match** | **0.708** | **0.582** (diagnoses only: 0.669) |
+| gold code unseen in training / seen 1–2× | 0.457 / 0.704 | 0.443 / 0.614 |
+| 50% most confident terms | 0.881 | 0.762 |
+| right 3-character category | 0.812 | – |
 | *ceiling: label self-agreement on near-duplicate terms* | *0.937* | *0.758* |
 
 The ladder of gains (min of the two systems) was: lexical 0.440, + SapBERT 0.500, + feature
-work 0.507, + two more encoders 0.515, + cross-encoder 0.535, + LLM 7B 0.562, + LLM 14B
-**0.576**. The CPU-only set reaches 0.658 / 0.507 at 50 ms/term.
+work 0.507, + two more encoders 0.515, + cross-encoder 0.535 (0.543 with 4 epochs), + LLM 7B
+0.567, + LLM 14B **0.582**. Without an LLM the engine reaches 0.684 / 0.543 (0.78 s/term on CPU);
+the fully CPU set reaches 0.658 / 0.507 at 50 ms/term. If the LLM cannot run (no GPU, or a
+shared GPU without enough free memory), the engine falls back automatically
+(14B → 7B → no LLM) and says so. The same input gives byte-identical output on every run.
 
 ## What we tried and abandoned
 
@@ -59,10 +62,10 @@ abbreviation disambiguation is correct on showcase cases but too rare in the tra
 * **Retrieval misses** (8.7% ICD, 14.9% SNOMED) are paraphrases with convention targets
   ("hemodynamic instability" → R09.89). Next: a contrastively fine-tuned retriever on gold
   pairs.
-* **Specificity** (8.5% ICD, same category, wrong leaf) and **semantic-type** confusions (13.5%
+* **Specificity** (8.4% ICD, same category, wrong leaf) and **semantic-type** confusions (13.3%
   SNOMED, procedure vs observable vs finding) are convention calls. Next: SNOMED IS-A
   hierarchy (RF2 release) for granularity features, and a written convention.
-* **Cost.** Without the LLM: 50 ms/term on CPU. The LLM adds one forward pass per term per
+* **Cost.** Without the LLM: 50 ms–0.8 s/term on CPU. The LLM adds one forward pass per term per
   system and can be restricted to the low-confidence 30%.
 
 External resources: the supplied dictionaries; SapBERT (Apache-2.0), gte-base (MIT),

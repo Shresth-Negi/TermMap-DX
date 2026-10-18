@@ -74,14 +74,25 @@ system's shortlist, weighted by its probabilities. In the GPU configuration, sta
 type, the five most similar *already-coded* training terms with their codes, and the top-10
 candidates as lettered options. One forward pass gives the log-probability of each option
 letter: no generation, no sampling, deterministic. A fine-tuned **cross-encoder** (SapBERT
-initialisation, listwise loss over the shortlist, 5-fold out-of-fold) adds a learned
-semantic-match score. Both models see SNOMED options with their semantic tag
+initialisation, listwise loss over the top-16 shortlist, 4 epochs, 5-fold out-of-fold) adds a
+learned semantic-match score. Going from 2 to 4 epochs raised its own top-1 within the shortlist
+from about 50% to 60% (ICD), and the system’s SNOMED accuracy by 0.5–0.8 pt. Both models see SNOMED options with their semantic tag
 ("International normalized ratio [observable entity]").
 
 **Stage selection and calibration.** Per system, stage 2 is used only if it beats stage 1 out of
 fold; without new evidence (no cross-encoder or LLM) it does not, and stage 1 is kept. Isotonic
 regression on the out-of-fold margin of the selected stage turns ranker scores into P(correct),
 which is reported as `confidence`.
+
+**Robust, reproducible inference.** Model sets form a ladder trained on the same folds:
+`_d3llm14e4 → _d3llm7e4 → _d3ce4`. Before loading an LLM the engine compares the GPU's free
+memory with the model's weight size. If it cannot run (no GPU, a shared GPU without room, out of
+memory while loading), it falls back to the next set and prints which set ran and why. We found
+this the hard way: our first GPU validation crashed because two other users' processes held
+33 GB of the card we were allocated. Query encoders always run in fp32 (half precision made an
+embedding depend on its batch neighbours by up to 4e-3). Training-memory embeddings are cached
+outside the query cache, so the same input gives byte-identical output on the first run and
+every run after.
 
 ## 3. Evaluation protocol (no leakage)
 
@@ -99,9 +110,11 @@ RESULTS_SECTION
 Measured on the shared node (AMD EPYC 9554, 16 threads, no GPU) for the CPU model set `_sap4`,
 mapping both systems per term: **50 ms/term in batch (≈72k terms/hour)**, single-term latency
 331 ms median / 372 ms p95, 64 s cold start, 16 GB RAM (dense indexes held as float32). The
-cross-encoder adds ~1.5 ms/term on a GPU. The LLM stage costs one ~700-token forward pass per
-term per system (LLM_LATENCY). It is the only component
-that needs a GPU at inference, and it can be limited to low-confidence terms.
+no-LLM set `_d3ce4` (three encoders plus the cross-encoder, all on CPU) runs at **~0.78 s/term**
+with a 32 s cold start once the training-memory embeddings are cached (about 10 minutes on the
+very first run), in ~17 GB RAM. The LLM stage costs one ~700-token forward pass per term per
+system (LLM_LATENCY). It is the only component that needs a GPU at inference, and it could be
+limited to low-confidence terms.
 
 ## 5. Error analysis
 
@@ -240,8 +253,9 @@ COVERAGE_TABLE
 * **Compute constraints shaped the design.** On a shared node every GPU was allocated for
   hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
   therefore built CPU-first, with every GPU step an optional, cached add-on that runs
-  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce` (68.3% / 53.5%) needs
-  a GPU only to build its indexes once, and only the LLM sets need a GPU at inference.
+  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce4` (68.4% /
+  54.3%) needs a GPU only to build its indexes and cross-encoder once, and only the LLM sets
+  need a GPU at inference. The engine falls back down the ladder automatically.
 * **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
   nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
   then the cross-encoder, then the LLM.

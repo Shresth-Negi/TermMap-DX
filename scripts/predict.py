@@ -43,4 +43,5 @@ if args.brief:
     out = out[keep]
 Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 out.to_csv(args.output, index=False)
-print(f"wrote {len(out)} rows -> {args.output}")
+print(f"wrote {len(out)} rows -> {args.output}  (model set {eng.tag}"
+      + (f"; fallback because {eng.fallback_reason})" if eng.fallback_reason else ")"))

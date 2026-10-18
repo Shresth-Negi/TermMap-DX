@@ -9,12 +9,14 @@ Queries are keyed by (entity, chunk_text, subconcept). Each key is mapped in
 """
 from __future__ import annotations
 
+import hashlib
 from collections import Counter, defaultdict
 
 import numpy as np
 import pandas as pd
 
 from .features import Queries, QueryEncoder, TrainMemory, build_features, clean_entity, context_without_mention
+from .paths import ARTIFACTS
 from .resources import SystemResources
 
 DX_SUBCONCEPTS = {"DiagnosisCode", "", None}
@@ -39,12 +41,27 @@ def system_keys(keys: pd.DataFrame, system: str) -> pd.DataFrame:
     return keys.reset_index(drop=True)
 
 
+def _encode_cached(qenc: QueryEncoder, model: str, texts: list[str]) -> np.ndarray:
+    """Query-side embeddings of the training memory, cached on disk per model, device and text set
+    (avoids re-embedding ~10k terms at every cold start; CPU and GPU vectors are never mixed)."""
+    enc = qenc.encoders[model]
+    h = hashlib.sha1("\n".join(texts).encode()).hexdigest()[:16]
+    p = ARTIFACTS / f"memvec_{model}_{enc.device}_{enc.precision}_{h}.npy"
+    if p.exists():
+        return np.load(p)
+    # straight through the encoder, not the shared query cache: a query that equals a training
+    # term must be embedded the same way whether or not this cache file already existed
+    v = enc.encode(texts, batch_size=256, query=True)
+    np.save(p, v)
+    return v
+
+
 def build_memory(train: pd.DataFrame, system: str, qenc: QueryEncoder, dense: tuple[str, ...]) -> tuple[TrainMemory, np.ndarray]:
     t = train[train["coding_system"] == system].reset_index(drop=True)
     texts = [clean_entity(e)[0] for e in t["entity"]]
     ctxs = [context_without_mention(e, c) for e, c in zip(t["entity"], t["chunk_text"])]
-    mem = TrainMemory(texts, t["code"].to_numpy(dtype=object), {m: qenc(m, texts) for m in dense},
-                      {m: qenc(m, ctxs) for m in dense[:1]})
+    mem = TrainMemory(texts, t["code"].to_numpy(dtype=object), {m: _encode_cached(qenc, m, texts) for m in dense},
+                      {m: _encode_cached(qenc, m, ctxs) for m in dense[:1]})
     return mem, t["key"].values if "key" in t else np.full(len(t), -1)
 
 

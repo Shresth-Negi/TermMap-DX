@@ -27,12 +27,13 @@ HARD_CASES = [
 ]
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--tag", default="_d3")
+ap.add_argument("--tag", default="_d3llm14e4")
 ap.add_argument("--interactive", action="store_true")
 ap.add_argument("--llm-model", default="")
 args = ap.parse_args()
 
 eng = Engine(tag=args.tag, verbose=False, llm_model=args.llm_model)
+print(f"model set: {eng.tag}" + (f"  (fallback: {eng.fallback_reason})" if eng.fallback_reason else ""))
 
 
 def show(rows):
