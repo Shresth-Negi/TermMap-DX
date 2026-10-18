@@ -12,23 +12,30 @@ import numpy as np
 import pandas as pd
 
 from termmap.corpus import SYSTEMS, description_map
+from termmap.io import load_train
 from termmap.paths import ARTIFACTS, ROOT
+from termmap.pipeline import attach_keys, make_keys
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--tag", required=True)
 ap.add_argument("--output", default=None)
 args = ap.parse_args()
+tr = load_train()
+tr["key"] = attach_keys(tr, make_keys(tr)).values
+tr["train_row"] = range(len(tr))  # 0-based data row of hackathon_train.csv (header excluded)
 parts = []
 for s in SYSTEMS:
     o = pd.read_parquet(ARTIFACTS / f"oof_{s}{args.tag}.parquet")
     cal = json.loads((ARTIFACTS / f"calib_{s}{args.tag}.json").read_text())
     desc = description_map(s)
+    row = tr[tr.coding_system == s].set_index("key")["train_row"]
     parts.append(pd.DataFrame({
-        "entity": o["entity"], "chunk_text": o["chunk_text"], "coding_system": s, "subconcept": o["subconcept"],
+        "train_row": row.reindex(o["key"]).values,
+        "entity": o["entity"], "coding_system": s, "subconcept": o["subconcept"],
         "gold_code": o["code"], "predicted_code": o["pred"], "predicted_description": o["pred"].map(desc),
         "confidence": np.round(np.interp(o["margin"].fillna(0), cal["x"], cal["y"]), 4),
         "correct": o["ok"].astype(int), "fold": o["fold"]}))
-out = pd.concat(parts, ignore_index=True)
+out = pd.concat(parts, ignore_index=True).sort_values("train_row").reset_index(drop=True)
 path = args.output or ROOT / "outputs" / f"cv_predictions{args.tag}.csv"
 out.to_csv(path, index=False)
 print(f"wrote {len(out)} rows -> {path}")

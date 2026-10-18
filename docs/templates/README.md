@@ -5,9 +5,9 @@ chunk of surrounding text, the engine assigns **one ICD-10-CM code and one
 SNOMED CT concept**, plus a calibrated confidence and the top-5 alternatives for
 each system. Everything runs locally: no chart text leaves the machine.
 
-> **Short write-up (2 pages):** [`docs/SUMMARY.pdf`](docs/SUMMARY.pdf) ·
-> **Full documentation:** [`docs/WRITEUP.pdf`](docs/WRITEUP.pdf) (architecture, protocol, error analysis,
-> innovations, resources) · **Demo script:** [`docs/DEMO.md`](docs/DEMO.md) · Demo video: _link to be added_.
+> **Documentation PDF:** [`docs/WRITEUP.pdf`](docs/WRITEUP.pdf) (approach, architecture, design decisions,
+> error analysis, innovations, challenges) · **Short write-up (2 pages):** [`docs/SUMMARY.pdf`](docs/SUMMARY.pdf) ·
+> **Reports:** [`reports/`](reports/) · **Demo video:** _link to be added_
 
 ## Results (5-fold cross-validation on the labelled training set)
 
@@ -59,24 +59,32 @@ entity + chunk ──► normalise (html, "(hcc)", ICD codes in text, abbreviati
 | `scripts/train_cross_encoder.py` | fine-tune the shortlist cross-encoder (5-fold OOF + final) |
 | `scripts/export_oof.py` | cross-validated predictions for every training row |
 | `tests/` | unit tests (pytest) |
+| `reports/` | final error analysis and per-set CV reports behind every number in the docs |
+| `scripts/set_demo_link.sh` | inserts the demo-video link into README and both PDFs |
+| `data/sample/sample_input.csv` | synthetic example input (no challenge data) |
 | `slurm/*.sbatch` | SLURM wrappers (GPU work never runs on the login node) |
 
 ## Setup
 
-Requirements: Linux, Python 3.13, ~25 GB of fast disk for model weights and
-indexes. A CUDA GPU (≥24 GB) is needed only for the LLM stage and makes
-index building ~50× faster; everything else runs on CPU.
+Requirements: Linux, Python 3.13, about 60 GB of fast disk (44 GB of model weights, mostly the
+two LLMs; 7 GB indexes and models; 8 GB venv), internet access on first run to download the
+open models from Hugging Face. A CUDA GPU is needed to rebuild from scratch (cross-encoder
+training, LLM scoring of the training shortlists; about 2.5 h on one 48 GB card) and for the LLM
+model sets at inference. Without one the engine still runs on CPU (see the model-set table).
 
 ```bash
-# 1. choose a work dir on fast local disk for venv / HF cache / artifacts
-export TERMMAP_WORK=/path/to/fast/disk/termmap_work      # see .env.example
+git clone <this repo> && cd <repo>
+# 1. work dir on fast local disk for venv, Hugging Face cache and artifacts
+cp .env.example .env            # then edit TERMMAP_WORK in .env
+source scripts/env.sh           # reads .env; sets venv path, caches, PYTHONPATH
 python3.13 -m venv $TERMMAP_WORK/venv
-$TERMMAP_WORK/venv/bin/pip install -r requirements.txt
-# 2. data: put the three challenge files in data/raw/ (not committed - proprietary)
-#    data/raw/hackathon_train.csv, data/raw/icd10cm_codes.xlsx,
+$PY -m pip install -r requirements.txt
+# 2. data (proprietary, never committed): place the three challenge files in data/raw/
+#    data/raw/hackathon_train.csv
+#    data/raw/icd10cm_codes.xlsx
 #    data/raw/SNOMEDCT_US_codes_and_descriptions.xlsx
-# 3. environment for every shell (venv, caches, PYTHONPATH; hides GPUs outside SLURM)
-source scripts/env.sh
+# 3. in every new shell
+source scripts/env.sh           # also hides GPUs outside a SLURM allocation
 ```
 
 ### Environment variables
@@ -85,7 +93,7 @@ No API keys are needed. See `.env.example`:
 
 | variable | default | meaning |
 |---|---|---|
-| `TERMMAP_WORK` | scratch dir | venv, Hugging Face cache, artifacts |
+| `TERMMAP_WORK` | `.work/` in the repo | venv, Hugging Face cache, artifacts |
 | `TERMMAP_ARTIFACTS_DIR` | `$TERMMAP_WORK/artifacts` | indexes, features, models |
 | `TERMMAP_RAW_DIR` | `data/raw` | challenge files |
 | `TERMMAP_TAG` | `_d3llm14e4` | model set for `run_all.sh` (see table below) |
@@ -136,7 +144,7 @@ python scripts/train.py --dense sapbert gte qwen3 --tag _d3llm14e4 --feats-tag _
        --extra $TERMMAP_ARTIFACTS_DIR/ce_scores_train_d3e4.parquet \
        --llm $TERMMAP_ARTIFACTS_DIR/llm_scores_train_d3_q14.parquet \
        --llm-model-id Qwen/Qwen2.5-14B-Instruct --fallback-tag _d3llm7e4
-python scripts/error_analysis.py --tag _d3llm14e4                    # outputs/error_analysis_d3llm14e4.md
+python scripts/error_analysis.py --tag _d3llm14e4                    # outputs/ (final copy in reports/)
 python scripts/export_oof.py --tag _d3llm14e4                        # cross-validated predictions
 python scripts/predict.py --input X.csv --output Y.csv --tag _d3llm14e4
 python scripts/demo.py --tag _d3llm14e4 [--interactive]              # hard-case walkthrough

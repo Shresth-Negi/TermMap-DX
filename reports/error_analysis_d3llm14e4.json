@@ -1,0 +1,165 @@
+{
+  "ICD10CM": {
+    "n": 2306,
+    "exact_match": 0.7082,
+    "same_3char_category": 0.8122,
+    "same_chapter_letter": 0.8929,
+    "long_tail": {
+      "unseen (0)": {
+        "acc": 0.4571,
+        "n": 466
+      },
+      "rare (1-2)": {
+        "acc": 0.7041,
+        "n": 517
+      },
+      "mid (3-9)": {
+        "acc": 0.782,
+        "n": 899
+      },
+      "frequent (10+)": {
+        "acc": 0.8325,
+        "n": 424
+      }
+    },
+    "long_tail_acc_unseen_or_rare": 0.587,
+    "failure_modes": {
+      "correct": {
+        "n": 1633,
+        "share_of_rows": 0.7082
+      },
+      "retrieval_miss": {
+        "n": 200,
+        "share_of_rows": 0.0867
+      },
+      "specificity (same 3-char category)": {
+        "n": 193,
+        "share_of_rows": 0.0837
+      },
+      "wrong concept, other chapter": {
+        "n": 144,
+        "share_of_rows": 0.0624
+      },
+      "wrong concept, same chapter": {
+        "n": 111,
+        "share_of_rows": 0.0481
+      },
+      "laterality": {
+        "n": 25,
+        "share_of_rows": 0.0108
+      }
+    },
+    "by_subconcept": {
+      "DiagnosisCode": {
+        "mean": 0.7085,
+        "size": 2305
+      },
+      "ProcedureCode": {
+        "mean": 0.0,
+        "size": 1
+      }
+    },
+    "accuracy_at_coverage": {
+      "100%": 0.7082,
+      "97%": 0.7211,
+      "90%": 0.7494,
+      "80%": 0.7881,
+      "70%": 0.8259,
+      "50%": 0.8812
+    },
+    "stage1_only_exact_match": 0.6531,
+    "label_consistency": {
+      "canonical_pairs": 53,
+      "canonical_agree": 0.9245,
+      "near_pairs": 79,
+      "near_agree": 0.9367
+    }
+  },
+  "SNOMEDCT_US": {
+    "n": 7340,
+    "exact_match": 0.5816,
+    "long_tail": {
+      "unseen (0)": {
+        "acc": 0.4433,
+        "n": 2964
+      },
+      "rare (1-2)": {
+        "acc": 0.614,
+        "n": 2308
+      },
+      "mid (3-9)": {
+        "acc": 0.7392,
+        "n": 1764
+      },
+      "frequent (10+)": {
+        "acc": 0.7697,
+        "n": 304
+      }
+    },
+    "long_tail_acc_unseen_or_rare": 0.518,
+    "failure_modes": {
+      "correct": {
+        "n": 4269,
+        "share_of_rows": 0.5816
+      },
+      "retrieval_miss": {
+        "n": 1094,
+        "share_of_rows": 0.149
+      },
+      "semantic-type mismatch (e.g. finding vs procedure)": {
+        "n": 975,
+        "share_of_rows": 0.1328
+      },
+      "wrong concept, same semantic type": {
+        "n": 943,
+        "share_of_rows": 0.1285
+      },
+      "laterality": {
+        "n": 59,
+        "share_of_rows": 0.008
+      }
+    },
+    "by_subconcept": {
+      "Device": {
+        "mean": 0.5446,
+        "size": 437
+      },
+      "DiagnosisCode": {
+        "mean": 0.6689,
+        "size": 2700
+      },
+      "EncounterType": {
+        "mean": 0.5908,
+        "size": 567
+      },
+      "LabService": {
+        "mean": 0.5664,
+        "size": 858
+      },
+      "MedicationProfileMedication": {
+        "mean": 0.0,
+        "size": 1
+      },
+      "ProcedureCode": {
+        "mean": 0.5056,
+        "size": 2777
+      }
+    },
+    "accuracy_at_coverage": {
+      "100%": 0.5816,
+      "97%": 0.5914,
+      "90%": 0.6166,
+      "80%": 0.6546,
+      "70%": 0.694,
+      "50%": 0.7624
+    },
+    "stage1_only_exact_match": 0.5153,
+    "label_consistency": {
+      "canonical_pairs": 250,
+      "canonical_agree": 0.668,
+      "near_pairs": 256,
+      "near_agree": 0.7578
+    }
+  },
+  "headline_min_exact_match": 0.5816
+}

@@ -1,6 +1,6 @@
 # TermMap-DX: mapping extracted clinical terms to ICD-10-CM and SNOMED CT
 
-HiLabs Hackathon 2026 · documentation and write-up
+HiLabs Hackathon 2026 · documentation and write-up · **Demo video:** _link to be added_
 
 ## 1. How we read the problem
 
@@ -149,7 +149,7 @@ limited to low-confidence terms.
 ## 5. Error analysis
 
 Numbers in this section are from out-of-fold predictions of the configuration in the headline
-row (`outputs/error_analysis_<tag>.md` has the full tables and sampled errors per failure mode).
+row (`reports/error_analysis_d3llm14e4.md` has the full tables and sampled errors per failure mode).
 
 **The labels set a ceiling well below 95%.** We measured how consistently the gold labels treat
 near-identical terms. Training pairs that are identical after normalising case, punctuation,

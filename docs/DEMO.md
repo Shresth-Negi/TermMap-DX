@@ -65,7 +65,7 @@ python scripts/demo.py --tag _d3llm14e4 --interactive
 * "Confidence is isotonic-calibrated on out-of-fold predictions, so a workflow can abstain: on
   the most confident half of the terms the engine is right 88% of the time for ICD and 76% for
   SNOMED, against 71% / 58% on all terms." (Coverage table in
-  `outputs/error_analysis_d3llm14e4.md`.)
+  `reports/error_analysis_d3llm14e4.md`.)
 * Show the failure-mode table and the label-consistency table: "Near-identical training terms
   get the same SNOMED code only 76% of the time, so part of the remaining gap is annotation
   convention, not model error."

@@ -1,0 +1,18 @@
+{
+ "dense": [
+  "sapbert",
+  "gte",
+  "qwen3"
+ ],
+ "bridge": 1,
+ "llm": true,
+ "llm_model": "Qwen/Qwen2.5-14B-Instruct",
+ "extra": [
+  "ce_scores_train_d3e4.parquet"
+ ],
+ "final_stage": {
+  "ICD10CM": 2,
+  "SNOMEDCT_US": 2
+ },
+ "fallback": "_d3llm7e4"
+}

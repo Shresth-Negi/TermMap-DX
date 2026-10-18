@@ -15,3 +15,8 @@ rapidfuzz==3.14.6
 sparse_dot_topn==1.2.0
 huggingface_hub==1.33.0
 pytest==9.1.1
+# docs only (figures and PDF build)
+matplotlib==3.11.2
+Markdown==3.11.1
+xhtml2pdf==0.2.26
+pypdfium2==5.14.0

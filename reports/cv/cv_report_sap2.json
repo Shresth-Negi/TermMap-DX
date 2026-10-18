@@ -1,0 +1,31 @@
+{
+  "ICD10CM": {
+    "stage1_cv_top1": 0.6526,
+    "candidate_recall": 0.9219,
+    "shortlist_recall": 0.8968,
+    "stage2_cv_top1": 0.6492,
+    "final_stage": 1,
+    "final_cv_top1": 0.6526,
+    "by_subconcept": {
+      "DiagnosisCode": 0.6529,
+      "ProcedureCode": 0.0
+    }
+  },
+  "SNOMEDCT_US": {
+    "stage1_cv_top1": 0.5038,
+    "candidate_recall": 0.8783,
+    "shortlist_recall": 0.832,
+    "stage2_cv_top1": 0.4963,
+    "final_stage": 1,
+    "final_cv_top1": 0.5038,
+    "by_subconcept": {
+      "Device": 0.4211,
+      "DiagnosisCode": 0.6,
+      "EncounterType": 0.4991,
+      "LabService": 0.4557,
+      "MedicationProfileMedication": 0.0,
+      "ProcedureCode": 0.4393
+    }
+  },
+  "headline_min_top1": 0.5038
+}

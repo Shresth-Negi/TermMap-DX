@@ -38,6 +38,10 @@ def fit(train: pd.DataFrame):
 
 
 def predict(df: pd.DataFrame) -> np.ndarray:
-    with open(PATH, "rb") as f:
-        clf = pickle.load(f)
+    if not PATH.exists():  # first use on a fresh checkout: train it (deterministic, ~20 s)
+        from .io import load_train
+        clf = fit(load_train())
+    else:
+        with open(PATH, "rb") as f:
+            clf = pickle.load(f)
     return clf.predict([_text(e, c) for e, c in zip(df.entity, df.chunk_text)])

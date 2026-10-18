@@ -1,6 +1,6 @@
 # TermMap-DX: short write-up
 
-HiLabs Hackathon 2026. The full documentation (architecture, protocol, error analysis, resources)
+HiLabs Hackathon 2026 · **Demo video:** _link to be added_. The full documentation (architecture, protocol, error analysis, resources)
 is in `docs/WRITEUP.pdf`.
 
 ## Approach and why
