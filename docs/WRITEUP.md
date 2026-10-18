@@ -94,16 +94,16 @@ fold. Exact-match accuracy is reported per system; the headline is the lower of 
 
 ## 4. Results
 
-All numbers are 5-fold CV exact match on the 9,646 labelled rows. GPU-stage rows (extra encoders, cross-encoder, LLM) are added when that run completes.
+All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_sap4` run entirely on CPU.
 
-**Headline (configuration `_sap4`):** ICD-10-CM **0.658**, SNOMED CT **0.507** → min **0.507**.
+**Headline (configuration `_d3llm`):** ICD-10-CM **0.702**, SNOMED CT **0.562** → min **0.562**.
 
 | metric | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| exact match (5-fold CV) | **0.658** | **0.507** |
-| long tail: gold code seen ≤ 2× elsewhere in train | 0.527 | 0.438 |
-| accuracy on the 70% most confident | 0.778 | 0.617 |
-| same 3-character category (ICD partial credit) | 0.762 | – |
+| exact match (5-fold CV) | **0.702** | **0.562** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.573 | 0.500 |
+| accuracy on the 70% most confident | 0.828 | 0.676 |
+| same 3-character category (ICD partial credit) | 0.801 | – |
 | label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
 
 **Ablation** (each row adds one component; the configuration in bold is the submitted one):
@@ -114,7 +114,10 @@ All numbers are 5-fold CV exact match on the 9,646 labelled rows. GPU-stage rows
 | + SapBERT dense retrieval | 0.655 | 0.500 | 0.500 | 0.598 | 0.922 / 0.878 |
 | + context / negation / numeric features | 0.653 | 0.504 | 0.504 | 0.600 | 0.922 / 0.878 |
 | + contextual kNN, wider candidate pools | 0.655 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
-| **+ official ICD titles (CPU-only final)** | **0.658** | **0.507** | **0.507** | 0.604 | 0.929 / 0.889 |
+| + official ICD titles (CPU-only set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
+| + gte-base + Qwen3-Embedding signals | 0.666 | 0.515 | 0.515 | 0.614 | 0.942 / 0.915 |
+| + fine-tuned cross-encoder | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
+| **+ Qwen2.5-7B listwise LLM scores** | **0.702** | **0.562** | **0.562** | 0.655 | 0.942 / 0.915 |
 
 ![ablation](figures/ablation.png)
 
@@ -125,7 +128,7 @@ Measured on the shared node (AMD EPYC 9554, 16 threads, no GPU) for the CPU mode
 mapping both systems per term: **50 ms/term in batch (≈72k terms/hour)**, single-term latency
 331 ms median / 372 ms p95, 64 s cold start, 16 GB RAM (dense indexes held as float32). The
 cross-encoder adds ~1.5 ms/term on a GPU. The LLM stage costs one ~700-token forward pass per
-term per system (measured in the GPU run). It is the only component
+term per system (measured: 82 ms/term per system with Qwen2.5-7B, batched on one RTX 6000 Ada). It is the only component
 that needs a GPU at inference, and it can be limited to low-confidence terms.
 
 ## 5. Error analysis
@@ -148,14 +151,14 @@ convention consolidation as much as modelling** (see §8).
 
 | failure mode | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| correct | 0.658 | 0.507 |
-| retrieval_miss | 0.099 | 0.167 |
-| semantic-type mismatch (e.g. finding vs procedure) | – | 0.164 |
-| wrong concept, same semantic type | – | 0.151 |
-| specificity (same 3-char category) | 0.086 | – |
-| wrong concept, other chapter | 0.084 | – |
-| wrong concept, same chapter | 0.057 | – |
-| laterality | 0.016 | 0.010 |
+| correct | 0.702 | 0.562 |
+| retrieval_miss | 0.087 | 0.149 |
+| semantic-type mismatch (e.g. finding vs procedure) | – | 0.144 |
+| wrong concept, same semantic type | – | 0.136 |
+| specificity (same 3-char category) | 0.081 | – |
+| wrong concept, other chapter | 0.068 | – |
+| wrong concept, same chapter | 0.052 | – |
+| laterality | 0.011 | 0.009 |
 
 * *Retrieval misses* are mostly paraphrases with no lexical overlap and a convention target:
   "could not df her ankle well" → R29.898, "hemodynamic instability" → R09.89. They are also
@@ -163,7 +166,7 @@ convention consolidation as much as modelling** (see §8).
 * *Specificity* errors (ICD, same 3-character category) are dominated by residual-code
   conventions: "nasal dyspnea" → R06.89 (other) vs R06.00 (unspecified); "lymphadenopathy" →
   R59.1 (generalised) vs R59.9; "alcohol dependence" → F10.20 vs F10.29. The predicted code is in the right
-  3-character category 76% of the time (right chapter 85%); the leaf choice is where
+  3-character category 80% of the time (right chapter 88%); the leaf choice is where
   convention bites.
 * *Semantic-type mismatch* (SNOMED) is the largest SNOMED-specific failure. The same name
   exists as a procedure, an observable and a finding ("inr", "full mask cpap", "acute rash"
@@ -175,16 +178,16 @@ convention consolidation as much as modelling** (see §8).
 
 | gold code seen elsewhere in training | ICD-10-CM acc (n) | SNOMED CT acc (n) |
 |---|---|---|
-| unseen (0) | 0.378 (466) | 0.360 (2964) |
-| rare (1-2) | 0.661 (517) | 0.539 (2308) |
-| mid (3-9) | 0.730 (899) | 0.675 (1764) |
-| frequent (10+) | 0.811 (424) | 0.724 (304) |
+| unseen (0) | 0.440 (466) | 0.429 (2964) |
+| rare (1-2) | 0.693 (517) | 0.591 (2308) |
+| mid (3-9) | 0.790 (899) | 0.714 (1764) |
+| frequent (10+) | 0.814 (424) | 0.753 (304) |
 
 Unseen-code accuracy is about half the frequent-code accuracy in both systems. The engine still
 maps a third of never-seen codes exactly, purely from dictionary retrieval plus learned
 convention features. This is the number that best predicts production behaviour.
 
-**By entity type (SNOMED).** Device 0.439 (n=437), DiagnosisCode 0.604 (n=2700), EncounterType 0.510 (n=567), LabService 0.462 (n=858), ProcedureCode 0.437 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.659 on diagnoses.
+**By entity type (SNOMED).** Device 0.519 (n=437), DiagnosisCode 0.655 (n=2700), EncounterType 0.584 (n=567), LabService 0.541 (n=858), ProcedureCode 0.481 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.702 on diagnoses.
 
 **Abbreviation collisions.** Bare ambiguous abbreviations are only 182 training rows (1.9%).
 ICD gets 75% of them right, SNOMED 46%. The context-conditioned reading score identifies the
@@ -198,12 +201,12 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 
 | coverage (most confident first) | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| 100% | 0.658 | 0.507 |
-| 97% | 0.670 | 0.516 |
-| 90% | 0.700 | 0.541 |
-| 80% | 0.737 | 0.576 |
-| 70% | 0.778 | 0.617 |
-| 50% | 0.853 | 0.716 |
+| 100% | 0.702 | 0.562 |
+| 97% | 0.715 | 0.573 |
+| 90% | 0.749 | 0.596 |
+| 80% | 0.791 | 0.633 |
+| 70% | 0.828 | 0.676 |
+| 50% | 0.889 | 0.777 |
 
 
 ## 6. Design decisions and why

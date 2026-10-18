@@ -12,10 +12,10 @@ each system. Everything runs locally: no chart text leaves the machine.
 
 | metric | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| exact match (5-fold CV) | **0.658** | **0.507** |
-| long tail: gold code seen ≤ 2× elsewhere in train | 0.527 | 0.438 |
-| accuracy on the 70% most confident | 0.778 | 0.617 |
-| same 3-character category (ICD partial credit) | 0.762 | – |
+| exact match (5-fold CV) | **0.702** | **0.562** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.573 | 0.500 |
+| accuracy on the 70% most confident | 0.828 | 0.676 |
+| same 3-character category (ICD partial credit) | 0.801 | – |
 | label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
 
 | configuration | ICD-10-CM | SNOMED CT | headline (min) | SNOMED, diagnoses only | candidate recall ICD / SNOMED |
@@ -24,7 +24,10 @@ each system. Everything runs locally: no chart text leaves the machine.
 | + SapBERT dense retrieval | 0.655 | 0.500 | 0.500 | 0.598 | 0.922 / 0.878 |
 | + context / negation / numeric features | 0.653 | 0.504 | 0.504 | 0.600 | 0.922 / 0.878 |
 | + contextual kNN, wider candidate pools | 0.655 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
-| **+ official ICD titles (CPU-only final)** | **0.658** | **0.507** | **0.507** | 0.604 | 0.929 / 0.889 |
+| + official ICD titles (CPU-only set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
+| + gte-base + Qwen3-Embedding signals | 0.666 | 0.515 | 0.515 | 0.614 | 0.942 / 0.915 |
+| + fine-tuned cross-encoder | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
+| **+ Qwen2.5-7B listwise LLM scores** | **0.702** | **0.562** | **0.562** | 0.655 | 0.942 / 0.915 |
 
 The headline number is the lower of the two systems, as in the brief. The
 long-tail column covers rows whose gold code appears at most twice elsewhere
