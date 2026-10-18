@@ -15,7 +15,7 @@ from pathlib import Path
 from .corpus import SYSTEMS
 from .paths import ARTIFACTS
 
-DEFAULT_REPO = "Rohan-Ark/TermMap-DX"
+DEFAULT_REPO = "RohanArk/TermMap-DX"
 SETS = ("_d3llm14e4", "_d3llm7e4", "_d3ce4", "_sap4")
 MANIFEST = "manifest.json"
 

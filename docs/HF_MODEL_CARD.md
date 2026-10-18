@@ -14,8 +14,15 @@ tags:
 
 Trained models for **TermMap-DX**, an engine that maps clinical terms extracted from charts to
 one ICD-10-CM code and one SNOMED CT concept (HiLabs Hackathon 2026). The code lives in the team's
-GitHub repository; `scripts/download_artifacts.py` there pulls these files into place, and
-`scripts/run_all.sh` does so automatically before mapping an input file.
+GitHub repository, [Shresth-Negi/TermMap-DX](https://github.com/Shresth-Negi/TermMap-DX) (private;
+judges have access). There, `scripts/download_artifacts.py` pulls these files into place, and
+`scripts/run_all.sh` does so automatically before mapping an input file:
+
+```bash
+git clone https://github.com/Shresth-Negi/TermMap-DX.git && cd TermMap-DX
+# set up the environment as in the README, put the challenge files in data/raw/, then
+bash scripts/run_all.sh <input.csv> outputs/predictions.csv   # downloads these artifacts first
+```
 
 ## Contents
 

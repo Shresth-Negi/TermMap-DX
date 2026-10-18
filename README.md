@@ -80,6 +80,8 @@ entity + chunk ──► normalise (html, "(hcc)", ICD codes in text, abbreviati
 | `tests/` | unit tests (pytest) |
 | `reports/` | final error analysis and per-set CV reports behind every number in the docs |
 | `scripts/set_demo_link.sh` | inserts the demo-video link into README and both PDFs |
+| `scripts/download_artifacts.py`, `src/termmap/hub.py` | fetch the trained artifacts from Hugging Face (checksum-verified) |
+| `scripts/upload_artifacts.py`, `docs/HF_MODEL_CARD.md` | publish them (maintainers) |
 | `data/sample/sample_input.csv` | synthetic example input (no challenge data) |
 | `slurm/*.sbatch` | SLURM wrappers (GPU work never runs on the login node) |
 
@@ -106,6 +108,22 @@ $PY -m pip install -r requirements.txt
 source scripts/env.sh           # also hides GPUs outside a SLURM allocation
 ```
 
+### Trained weights (Hugging Face)
+
+All trained artifacts (fine-tuned cross-encoders, LightGBM rankers, calibration, model-set configs
+and the dictionary embedding indexes; 4.6 GB, sha256-checked) are published at
+**https://huggingface.co/RohanArk/TermMap-DX**. `run_all.sh` downloads them automatically before mapping
+an input, so evaluation needs no retraining. To fetch them by hand:
+
+```bash
+$PY scripts/download_artifacts.py                  # default set + fallbacks (4.6 GB)
+$PY scripts/download_artifacts.py --sets _sap4     # lightest CPU-only set (1.2 GB)
+```
+
+The base encoders and LLMs are pulled from their own public Hugging Face repos on first use.
+No API keys are needed anywhere. Without network access to the Hub, `run_all.sh` rebuilds the
+missing artifacts locally instead (about 2.5 h on one 48 GB GPU).
+
 ### Environment variables
 
 No API keys are needed. See `.env.example`:
@@ -116,6 +134,8 @@ No API keys are needed. See `.env.example`:
 | `TERMMAP_ARTIFACTS_DIR` | `$TERMMAP_WORK/artifacts` | indexes, features, models |
 | `TERMMAP_RAW_DIR` | `data/raw` | challenge files |
 | `TERMMAP_TAG` | `_d3llm14e4` | model set for `run_all.sh` (see table below) |
+| `TERMMAP_HF_REPO` | `RohanArk/TermMap-DX` | Hugging Face repo holding the trained artifacts |
+| `TERMMAP_HIDE_GPU_OUTSIDE_SLURM` | `0` | `1` hides GPUs outside a SLURM job (shared clusters) |
 
 ## Run end to end (one command)
 
