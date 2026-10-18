@@ -1,7 +1,8 @@
 """Demo: map hard cases live and show confidence + alternatives.
 
-  python scripts/demo.py --tag _d3                 # scripted hard cases
-  python scripts/demo.py --tag _d3 --interactive   # type: term || context
+  python scripts/demo.py                   # scripted hard cases, best model set this machine can run
+  python scripts/demo.py --interactive     # type: term || context
+  python scripts/demo.py --tag _d3ce4      # force a model set (_d3llm14e4, _d3llm7e4, _d3ce4, _sap4)
 """
 import argparse
 import time
