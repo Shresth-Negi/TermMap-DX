@@ -26,8 +26,8 @@ source scripts/env.sh
 ## 0:40–2:00 Live hard cases
 
 ```bash
-python scripts/demo.py --tag _d3llm --llm-model Qwen/Qwen2.5-7B-Instruct   # GPU
-# or: python scripts/demo.py --tag _d3ce                                   # CPU
+python scripts/demo.py --tag _d3llm14      # GPU node: full system (LLM loaded automatically)
+# or: python scripts/demo.py --tag _d3ce     # no GPU
 ```
 
 Narrate while it prints:
@@ -45,7 +45,7 @@ Narrate while it prints:
 Then live input:
 
 ```bash
-python scripts/demo.py --tag _d3ce --interactive
+python scripts/demo.py --tag _d3llm14 --interactive
 > afib w rvr || cardiology: afib w rvr, rate 140, started diltiazem drip
 > sz d/o || neuro: known sz d/o on keppra
 ```

@@ -240,7 +240,8 @@ COVERAGE_TABLE
 * **Compute constraints shaped the design.** On a shared node every GPU was allocated for
   hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
   therefore built CPU-first, with every GPU step an optional, cached add-on that runs
-  unattended under SLURM. A useful side effect is a complete CPU-only fallback (`_sap4`).
+  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce` (68.3% / 53.5%) needs
+  a GPU only to build its indexes once, and only the LLM sets need a GPU at inference.
 * **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
   nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
   then the cross-encoder, then the LLM.
@@ -264,7 +265,11 @@ COVERAGE_TABLE
 4. **LLM only where it pays.** Route the least-confident ~30% of terms to a larger local
    model with the full shortlist and retrieved examples. The other 70% are already at
    75–80% accuracy and cost ~0.2 s/term on CPU.
-5. **Version drift.** Dictionaries are inputs, not code. A new ICD-10-CM (October) or SNOMED
+5. **One title per ICD code everywhere.** The supplied ICD file mixes official titles, short
+   titles and index terms per code. The output uses a refined display rule (85% agreement with
+   the gold display), but the cross-encoder and LLM were trained on an earlier rule (79%).
+   Retraining them on the refined titles is a one-command GPU job.
+6. **Version drift.** Dictionaries are inputs, not code. A new ICD-10-CM (October) or SNOMED
    (biannual) release only needs `build_index.py` plus `train.py` (≈20 min on one GPU). Codes
    deleted in a release can be remapped with the CMS GEM / conversion tables before retraining,
    and training labels that point at retired codes are flagged by the dictionary check that

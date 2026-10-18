@@ -12,10 +12,10 @@ each system. Everything runs locally: no chart text leaves the machine.
 
 | metric | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| exact match (5-fold CV) | **0.702** | **0.562** |
-| long tail: gold code seen ≤ 2× elsewhere in train | 0.573 | 0.500 |
-| accuracy on the 70% most confident | 0.828 | 0.676 |
-| same 3-character category (ICD partial credit) | 0.801 | – |
+| exact match (5-fold CV) | **0.705** | **0.576** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.572 | 0.514 |
+| accuracy on the 70% most confident | 0.787 | 0.692 |
+| same 3-character category (ICD partial credit) | 0.810 | – |
 | label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
 
 | configuration | ICD-10-CM | SNOMED CT | headline (min) | SNOMED, diagnoses only | candidate recall ICD / SNOMED |
@@ -27,7 +27,8 @@ each system. Everything runs locally: no chart text leaves the machine.
 | + official ICD titles (CPU-only set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
 | + gte-base + Qwen3-Embedding signals | 0.666 | 0.515 | 0.515 | 0.614 | 0.942 / 0.915 |
 | + fine-tuned cross-encoder | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
-| **+ Qwen2.5-7B listwise LLM scores** | **0.702** | **0.562** | **0.562** | 0.655 | 0.942 / 0.915 |
+| + Qwen2.5-7B listwise LLM scores | 0.702 | 0.562 | 0.562 | 0.655 | 0.942 / 0.915 |
+| **Qwen2.5-14B instead of 7B (final)** | **0.705** | **0.576** | **0.576** | 0.670 | 0.942 / 0.915 |
 
 The headline number is the lower of the two systems, as in the brief. The
 long-tail column covers rows whose gold code appears at most twice elsewhere
@@ -104,7 +105,7 @@ No API keys are needed. See `.env.example`:
 | `TERMMAP_WORK` | scratch dir | venv, Hugging Face cache, artifacts |
 | `TERMMAP_ARTIFACTS_DIR` | `$TERMMAP_WORK/artifacts` | indexes, features, models |
 | `TERMMAP_RAW_DIR` | `data/raw` | challenge files |
-| `TERMMAP_TAG` | `_d3llm` | model set for `run_all.sh` (see table below) |
+| `TERMMAP_TAG` | `_d3llm14` | model set for `run_all.sh` (see table below) |
 | `TERMMAP_LLM` | `Qwen/Qwen2.5-7B-Instruct` | local LLM for the LLM stage |
 
 ## Run end to end (one command)
@@ -121,8 +122,8 @@ TERMMAP_TAG=_sap4 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.
 | `_sap4` | lexical + SapBERT + training memory, stage-1 LambdaRank | CPU, ~0.2 s/term |
 | `_d3` | + gte-base + Qwen3-Embedding signals | CPU ok |
 | `_d3ce` | + fine-tuned cross-encoder over the shortlist | CPU ok, GPU faster |
-| `_d3llm` (default) | + Qwen2.5-7B-Instruct listwise scores | GPU ≥ 24 GB |
-| `_d3llm14` | + Qwen2.5-14B-Instruct instead of 7B | GPU ≥ 40 GB |
+| `_d3llm` | + Qwen2.5-7B-Instruct listwise scores | GPU ≥ 24 GB |
+| `_d3llm14` (default, best) | + Qwen2.5-14B-Instruct instead of 7B | GPU ≥ 40 GB |
 
 `run_all.sh` is idempotent: it builds the dense indexes, trains the rankers
 (and cross-encoder / LLM training scores) only if the artifacts are missing, then

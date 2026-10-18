@@ -96,14 +96,14 @@ fold. Exact-match accuracy is reported per system; the headline is the lower of 
 
 All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_sap4` run entirely on CPU.
 
-**Headline (configuration `_d3llm`):** ICD-10-CM **0.702**, SNOMED CT **0.562** → min **0.562**.
+**Headline (configuration `_d3llm14`):** ICD-10-CM **0.705**, SNOMED CT **0.576** → min **0.576**.
 
 | metric | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| exact match (5-fold CV) | **0.702** | **0.562** |
-| long tail: gold code seen ≤ 2× elsewhere in train | 0.573 | 0.500 |
-| accuracy on the 70% most confident | 0.828 | 0.676 |
-| same 3-character category (ICD partial credit) | 0.801 | – |
+| exact match (5-fold CV) | **0.705** | **0.576** |
+| long tail: gold code seen ≤ 2× elsewhere in train | 0.572 | 0.514 |
+| accuracy on the 70% most confident | 0.787 | 0.692 |
+| same 3-character category (ICD partial credit) | 0.810 | – |
 | label self-consistency on near-duplicates (ceiling) | 0.937 | 0.758 |
 
 **Ablation** (each row adds one component; the configuration in bold is the submitted one):
@@ -117,7 +117,8 @@ All numbers are 5-fold CV exact match on the 9,646 labelled rows. Rows up to `_s
 | + official ICD titles (CPU-only set) | 0.658 | 0.507 | 0.507 | 0.604 | 0.929 / 0.889 |
 | + gte-base + Qwen3-Embedding signals | 0.666 | 0.515 | 0.515 | 0.614 | 0.942 / 0.915 |
 | + fine-tuned cross-encoder | 0.683 | 0.535 | 0.535 | 0.631 | 0.942 / 0.915 |
-| **+ Qwen2.5-7B listwise LLM scores** | **0.702** | **0.562** | **0.562** | 0.655 | 0.942 / 0.915 |
+| + Qwen2.5-7B listwise LLM scores | 0.702 | 0.562 | 0.562 | 0.655 | 0.942 / 0.915 |
+| **Qwen2.5-14B instead of 7B (final)** | **0.705** | **0.576** | **0.576** | 0.670 | 0.942 / 0.915 |
 
 ![ablation](figures/ablation.png)
 
@@ -128,7 +129,7 @@ Measured on the shared node (AMD EPYC 9554, 16 threads, no GPU) for the CPU mode
 mapping both systems per term: **50 ms/term in batch (≈72k terms/hour)**, single-term latency
 331 ms median / 372 ms p95, 64 s cold start, 16 GB RAM (dense indexes held as float32). The
 cross-encoder adds ~1.5 ms/term on a GPU. The LLM stage costs one ~700-token forward pass per
-term per system (measured: 82 ms/term per system with Qwen2.5-7B, batched on one RTX 6000 Ada). It is the only component
+term per system (measured, batched on one RTX 6000 Ada: 82 ms/term per system with Qwen2.5-7B; about 250 ms with Qwen2.5-14B, measured while the GPU was shared with a training job). It is the only component
 that needs a GPU at inference, and it can be limited to low-confidence terms.
 
 ## 5. Error analysis
@@ -145,20 +146,20 @@ plurals and word order get the *same* gold code only **92.5% of the time in ICD-
 diabetes mellitus*, and the three "icd-10-cm" variants map to two different reference sets.
 Under these labels, any deterministic system is capped at roughly 75% SNOMED exact match. Our
 SNOMED gap is therefore half annotation convention, half model error. **Closing it needs
-convention consolidation as much as modelling** (see §8).
+convention consolidation as much as modelling** (see §10).
 
 **Failure modes** (share of all rows):
 
 | failure mode | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| correct | 0.702 | 0.562 |
+| correct | 0.705 | 0.576 |
 | retrieval_miss | 0.087 | 0.149 |
-| semantic-type mismatch (e.g. finding vs procedure) | – | 0.144 |
-| wrong concept, same semantic type | – | 0.136 |
-| specificity (same 3-char category) | 0.081 | – |
-| wrong concept, other chapter | 0.068 | – |
-| wrong concept, same chapter | 0.052 | – |
-| laterality | 0.011 | 0.009 |
+| semantic-type mismatch (e.g. finding vs procedure) | – | 0.135 |
+| wrong concept, same semantic type | – | 0.132 |
+| specificity (same 3-char category) | 0.085 | – |
+| wrong concept, other chapter | 0.065 | – |
+| wrong concept, same chapter | 0.048 | – |
+| laterality | 0.010 | 0.008 |
 
 * *Retrieval misses* are mostly paraphrases with no lexical overlap and a convention target:
   "could not df her ankle well" → R29.898, "hemodynamic instability" → R09.89. They are also
@@ -166,7 +167,7 @@ convention consolidation as much as modelling** (see §8).
 * *Specificity* errors (ICD, same 3-character category) are dominated by residual-code
   conventions: "nasal dyspnea" → R06.89 (other) vs R06.00 (unspecified); "lymphadenopathy" →
   R59.1 (generalised) vs R59.9; "alcohol dependence" → F10.20 vs F10.29. The predicted code is in the right
-  3-character category 80% of the time (right chapter 88%); the leaf choice is where
+  3-character category 81% of the time (right chapter 89%); the leaf choice is where
   convention bites.
 * *Semantic-type mismatch* (SNOMED) is the largest SNOMED-specific failure. The same name
   exists as a procedure, an observable and a finding ("inr", "full mask cpap", "acute rash"
@@ -178,16 +179,16 @@ convention consolidation as much as modelling** (see §8).
 
 | gold code seen elsewhere in training | ICD-10-CM acc (n) | SNOMED CT acc (n) |
 |---|---|---|
-| unseen (0) | 0.440 (466) | 0.429 (2964) |
-| rare (1-2) | 0.693 (517) | 0.591 (2308) |
-| mid (3-9) | 0.790 (899) | 0.714 (1764) |
-| frequent (10+) | 0.814 (424) | 0.753 (304) |
+| unseen (0) | 0.431 (466) | 0.439 (2964) |
+| rare (1-2) | 0.698 (517) | 0.611 (2308) |
+| mid (3-9) | 0.793 (899) | 0.731 (1764) |
+| frequent (10+) | 0.828 (424) | 0.757 (304) |
 
 Unseen-code accuracy is about half the frequent-code accuracy in both systems. The engine still
 maps a third of never-seen codes exactly, purely from dictionary retrieval plus learned
 convention features. This is the number that best predicts production behaviour.
 
-**By entity type (SNOMED).** Device 0.519 (n=437), DiagnosisCode 0.655 (n=2700), EncounterType 0.584 (n=567), LabService 0.541 (n=858), ProcedureCode 0.481 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.702 on diagnoses.
+**By entity type (SNOMED).** Device 0.538 (n=437), DiagnosisCode 0.670 (n=2700), EncounterType 0.586 (n=567), LabService 0.536 (n=858), ProcedureCode 0.502 (n=2777). Diagnoses are the easiest SNOMED slice; procedures, devices and labs carry more granularity conventions. ICD-10-CM: 0.705 on diagnoses.
 
 **Abbreviation collisions.** Bare ambiguous abbreviations are only 182 training rows (1.9%).
 ICD gets 75% of them right, SNOMED 46%. The context-conditioned reading score identifies the
@@ -201,12 +202,12 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 
 | coverage (most confident first) | ICD-10-CM | SNOMED CT |
 |---|---|---|
-| 100% | 0.702 | 0.562 |
-| 97% | 0.715 | 0.573 |
-| 90% | 0.749 | 0.596 |
-| 80% | 0.791 | 0.633 |
-| 70% | 0.828 | 0.676 |
-| 50% | 0.889 | 0.777 |
+| 100% | 0.705 | 0.576 |
+| 97% | 0.722 | 0.586 |
+| 90% | 0.747 | 0.612 |
+| 80% | 0.773 | 0.650 |
+| 70% | 0.787 | 0.692 |
+| 50% | 0.846 | 0.774 |
 
 
 ## 6. Design decisions and why
@@ -258,7 +259,45 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 * **Official SNOMED→ICD map / UMLS.** Not used (licence-gated, and the brief notes the map
   cannot be ground truth). A data-driven co-occurrence prior replaces it.
 
-## 8. Plan for the remaining gap
+## 8. Innovations
+
+* **A measured label ceiling.** Self-agreement of the gold labels on near-duplicate terms
+  (§5) turns "95%" from a target into a diagnosable gap: it separates annotation convention
+  from model error, and it lists the conflicting groups for adjudication.
+* **The dictionary teaches its own abbreviations.** 7.7k `ABBR - Expansion` descriptions in the
+  supplied SNOMED export become the abbreviation lexicon. There is no external resource and it
+  is versioned with the dictionary.
+* **SNOMED as a thesaurus for ICD.** SNOMED preferred terms of the best dense matches become
+  ICD query variants, bridging lay or clinical phrasing to ICD's terse titles.
+* **Training memory as a retriever with hierarchy-aware votes.** Leave-one-out neighbour
+  votes at the code *and* the ICD 3-character-category level make specificity an explicit,
+  learned decision. A contextual variant (entity × context similarity) down-weights
+  neighbours from a different clinical setting.
+* **Coupled, not crosswalked.** Each system is predicted on its own. Cross-system evidence
+  (leave-one-out co-occurrence, shortlist-to-shortlist similarity) only enters stage 2.
+* **Deterministic LLM judgement.** One forward pass, letter log-probabilities over a
+  10-option shortlist, with the five nearest *coded* examples in the prompt so the model sees
+  the house convention. No sampling, no parsing, and a calibrated ranker decides how much to
+  trust it.
+* **Abstention built in.** Out-of-fold isotonic calibration plus CV-based stage selection give
+  each prediction a usable P(correct); the coverage table in §5 shows the trade-off.
+
+## 9. Challenges and learnings
+
+* **The data did not match the brief.** It is long-format with one row per system, includes
+  non-diagnosis SNOMED entity types, and has no released evaluation input. We built the engine
+  to accept both layouts and to always emit both systems.
+* **Compute constraints shaped the design.** On a shared node every GPU was allocated for
+  hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
+  therefore built CPU-first, with every GPU step an optional, cached add-on that runs
+  unattended under SLURM. A useful side effect is a complete CPU-only fallback (`_sap4`).
+* **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
+  nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
+  then the cross-encoder, then the LLM.
+* **Stage 2 must earn its place.** Without new evidence a second ranker slightly *hurt*. That
+  is why stage selection is decided per system on out-of-fold accuracy.
+
+## 10. Plan for the remaining gap
 
 1. **Consolidate the convention, then measure against it.** With SNOMED self-agreement at
    67–76% on near-duplicates, the most valuable next step is adjudicating the ~250 conflicting
@@ -275,7 +314,11 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 4. **LLM only where it pays.** Route the least-confident ~30% of terms to a larger local
    model with the full shortlist and retrieved examples. The other 70% are already at
    75–80% accuracy and cost ~0.2 s/term on CPU.
-5. **Version drift.** Dictionaries are inputs, not code. A new ICD-10-CM (October) or SNOMED
+5. **One title per ICD code everywhere.** The supplied ICD file mixes official titles, short
+   titles and index terms per code. The output uses a refined display rule (85% agreement with
+   the gold display), but the cross-encoder and LLM were trained on an earlier rule (79%).
+   Retraining them on the refined titles is a one-command GPU job.
+6. **Version drift.** Dictionaries are inputs, not code. A new ICD-10-CM (October) or SNOMED
    (biannual) release only needs `build_index.py` plus `train.py` (≈20 min on one GPU). Codes
    deleted in a release can be remapped with the CMS GEM / conversion tables before retraining,
    and training labels that point at retired codes are flagged by the dictionary check that
@@ -283,7 +326,7 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
    dictionary).
 
 
-## 9. External resources
+## 11. External resources
 
 | resource | version / id | use | licence |
 |---|---|---|---|

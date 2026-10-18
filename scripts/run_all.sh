@@ -3,7 +3,7 @@
 #
 #   bash scripts/run_all.sh <input.csv> [output.csv]
 #
-# TERMMAP_TAG selects the model set (default _d3llm). Each is a strict superset of the previous:
+# TERMMAP_TAG selects the model set (default _d3llm14). Each is a strict superset of the previous:
 #   _sap4     SapBERT dense + lexical + training memory              CPU only, ~0.2 s/term
 #   _d3       + gte-base + Qwen3-Embedding signals                   CPU ok (indexes built once on GPU)
 #   _d3ce     + fine-tuned cross-encoder over the shortlist          CPU ok, GPU faster
@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 source scripts/env.sh
 INPUT="${1:?usage: run_all.sh <input.csv> [output.csv]}"
 OUTPUT="${2:-outputs/predictions.csv}"
-TAG="${TERMMAP_TAG:-_d3llm}"
+TAG="${TERMMAP_TAG:-_d3llm14}"
 A="$TERMMAP_ARTIFACTS_DIR"
 CE=0; LLMID=""; LLMSUF=""
 case "$TAG" in

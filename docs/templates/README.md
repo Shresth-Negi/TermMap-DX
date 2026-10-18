@@ -87,7 +87,7 @@ No API keys are needed. See `.env.example`:
 | `TERMMAP_WORK` | scratch dir | venv, Hugging Face cache, artifacts |
 | `TERMMAP_ARTIFACTS_DIR` | `$TERMMAP_WORK/artifacts` | indexes, features, models |
 | `TERMMAP_RAW_DIR` | `data/raw` | challenge files |
-| `TERMMAP_TAG` | `_d3llm` | model set for `run_all.sh` (see table below) |
+| `TERMMAP_TAG` | `_d3llm14` | model set for `run_all.sh` (see table below) |
 | `TERMMAP_LLM` | `Qwen/Qwen2.5-7B-Instruct` | local LLM for the LLM stage |
 
 ## Run end to end (one command)
@@ -95,7 +95,9 @@ No API keys are needed. See `.env.example`:
 ```bash
 # full system on a GPU node (SLURM) - never on the login node
 srun --gres=gpu:1 --cpus-per-task=32 --mem=160G bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
-# CPU-only fallback (no GPU needed at all)
+# no GPU at inference: best CPU-capable set (cross-encoder runs on CPU, ~0.3 s/term)
+TERMMAP_TAG=_d3ce bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
+# fastest, fully CPU (also builds its own index on CPU)
 TERMMAP_TAG=_sap4 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
 ```
 
@@ -104,8 +106,8 @@ TERMMAP_TAG=_sap4 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.
 | `_sap4` | lexical + SapBERT + training memory, stage-1 LambdaRank | CPU, ~0.2 s/term |
 | `_d3` | + gte-base + Qwen3-Embedding signals | CPU ok |
 | `_d3ce` | + fine-tuned cross-encoder over the shortlist | CPU ok, GPU faster |
-| `_d3llm` (default) | + Qwen2.5-7B-Instruct listwise scores | GPU ≥ 24 GB |
-| `_d3llm14` | + Qwen2.5-14B-Instruct instead of 7B | GPU ≥ 40 GB |
+| `_d3llm` | + Qwen2.5-7B-Instruct listwise scores | GPU ≥ 24 GB |
+| `_d3llm14` (default, best) | + Qwen2.5-14B-Instruct instead of 7B | GPU ≥ 40 GB |
 
 `run_all.sh` is idempotent: it builds the dense indexes, trains the rankers
 (and cross-encoder / LLM training scores) only if the artifacts are missing, then
