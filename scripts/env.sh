@@ -14,7 +14,8 @@ export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 export TERMMAP_ARTIFACTS_DIR="${TERMMAP_ARTIFACTS_DIR:-$TERMMAP_WORK/artifacts}"
 PY="$TERMMAP_WORK/venv/bin/python"
 export PY
-# Never touch GPUs outside a SLURM allocation (the login node also has GPUs attached).
-if [ -z "${SLURM_JOB_ID:-}" ]; then
+# Optional cluster safety: with TERMMAP_HIDE_GPU_OUTSIDE_SLURM=1 (e.g. in .env), GPUs are hidden unless
+# running inside a SLURM allocation, so nothing ever runs on a shared login node's GPUs.
+if [ "${TERMMAP_HIDE_GPU_OUTSIDE_SLURM:-0}" = "1" ] && [ -z "${SLURM_JOB_ID:-}" ]; then
   export CUDA_VISIBLE_DEVICES=""
 fi

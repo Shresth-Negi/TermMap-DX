@@ -31,6 +31,8 @@ build_set() {
     *) echo "unknown model set $tag"; exit 1 ;;
   esac
   [ -n "$fb" ] && build_set "$fb"
+  # already trained or downloaded from Hugging Face: nothing to build
+  [ -f "$A/ranker_SNOMEDCT_US_s2$tag.txt" ] && [ -f "$A/config$tag.json" ] && return 0
   $PY scripts/build_index.py --models $dense
   [ -f "$A/ranker_SNOMEDCT_US_s2$base.txt" ] || $PY scripts/train.py --dense $dense --tag "$base"
   [ "$tag" = "$base" ] && return
@@ -48,6 +50,9 @@ build_set() {
     $PY scripts/train.py --dense $dense --tag "$tag" --feats-tag "$base" "${args[@]}"
 }
 
+# trained artifacts: pulled from Hugging Face (files already present are skipped); if that is not
+# possible (offline, repo unavailable) the missing pieces are trained locally instead (needs a GPU)
+$PY scripts/download_artifacts.py --sets "$TAG" || echo "[run_all] Hugging Face download unavailable; building locally"
 build_set "$TAG"
 # deliverable schema (input columns + icd10cm_code, snomed_code) and a detailed copy with
 # descriptions, calibrated confidences, margins and top-5 alternatives

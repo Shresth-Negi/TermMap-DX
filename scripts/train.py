@@ -13,6 +13,7 @@ Usage: python scripts/train.py [--dense sapbert gte] [--llm artifacts/llm_scores
 import argparse
 import json
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -56,7 +57,8 @@ keys[["key", "entity", "chunk_text", "subconcept"]].assign(fold=fold_of_key).to_
 
 (ARTIFACTS / f"config{T}.json").write_text(json.dumps({"dense": args.dense, "bridge": args.bridge,
                                                        "llm": bool(args.llm), "llm_model": args.llm_model_id if args.llm else "",
-                                                       "extra": args.extra, "fallback": args.fallback_tag}))
+                                                       "extra": [Path(p).name for p in args.extra],
+                                                       "fallback": args.fallback_tag}))
 qenc = QueryEncoder({m: Encoder(m) for m in args.dense})
 res, S, gold, report, acc1_of = {}, {}, {}, {}, {}
 
