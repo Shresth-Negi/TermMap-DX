@@ -251,8 +251,8 @@ COVERAGE_TABLE
 ## 10. Plan for the remaining gap
 
 1. **Consolidate the convention, then measure against it.** With SNOMED self-agreement at
-   67–76% on near-duplicates, the most valuable next step is adjudicating the ~250 conflicting
-   near-duplicate groups we surface automatically (`error_analysis.py`) and writing a short
+   67–76% on near-duplicates, the most valuable next step is adjudicating the ~80 conflicting
+   duplicate pairs and ~60 near-duplicate pairs we surface automatically (`error_analysis.py`) and writing a short
    coding guideline: preferred granularity, residual "other" vs "unspecified", and procedure vs
    observable for labs. Re-labelling those groups also raises the achievable ceiling.
 2. **SNOMED hierarchy.** The supplied export has no IS-A relationships. With the RF2 release

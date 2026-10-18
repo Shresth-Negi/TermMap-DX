@@ -290,7 +290,8 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 * **Compute constraints shaped the design.** On a shared node every GPU was allocated for
   hours, the QOS allowed one job per user, and the home quota was full. The pipeline was
   therefore built CPU-first, with every GPU step an optional, cached add-on that runs
-  unattended under SLURM. A useful side effect is a complete CPU-only fallback (`_sap4`).
+  unattended under SLURM. A useful side effect is a ladder of model sets: `_sap4` is fully CPU, `_d3ce` (68.3% / 53.5%) needs
+  a GPU only to build its indexes once, and only the LLM sets need a GPU at inference.
 * **Evidence beats capacity.** Hyper-parameter search, ensembles and specialised rankers moved
   nothing (±0.5 pt). Every real gain came from a new, independent signal: dense retrieval,
   then the cross-encoder, then the LLM.
@@ -300,8 +301,8 @@ routed to review. The LLM stage, which reads the context, is designed to resolve
 ## 10. Plan for the remaining gap
 
 1. **Consolidate the convention, then measure against it.** With SNOMED self-agreement at
-   67–76% on near-duplicates, the most valuable next step is adjudicating the ~250 conflicting
-   near-duplicate groups we surface automatically (`error_analysis.py`) and writing a short
+   67–76% on near-duplicates, the most valuable next step is adjudicating the ~80 conflicting
+   duplicate pairs and ~60 near-duplicate pairs we surface automatically (`error_analysis.py`) and writing a short
    coding guideline: preferred granularity, residual "other" vs "unspecified", and procedure vs
    observable for labs. Re-labelling those groups also raises the achievable ceiling.
 2. **SNOMED hierarchy.** The supplied export has no IS-A relationships. With the RF2 release

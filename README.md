@@ -5,8 +5,9 @@ chunk of surrounding text, the engine assigns **one ICD-10-CM code and one
 SNOMED CT concept**, plus a calibrated confidence and the top-5 alternatives for
 each system. Everything runs locally: no chart text leaves the machine.
 
-> Results, design rationale and error analysis: see [`docs/WRITEUP.md`](docs/WRITEUP.md)
-> (also exported as `docs/WRITEUP.pdf`). Demo video: _link to be added_.
+> **Short write-up (2 pages):** [`docs/SUMMARY.pdf`](docs/SUMMARY.pdf) ·
+> **Full documentation:** [`docs/WRITEUP.pdf`](docs/WRITEUP.pdf) (architecture, protocol, error analysis,
+> innovations, resources) · **Demo script:** [`docs/DEMO.md`](docs/DEMO.md) · Demo video: _link to be added_.
 
 ## Results (5-fold cross-validation on the labelled training set)
 
@@ -113,7 +114,9 @@ No API keys are needed. See `.env.example`:
 ```bash
 # full system on a GPU node (SLURM) - never on the login node
 srun --gres=gpu:1 --cpus-per-task=32 --mem=160G bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
-# CPU-only fallback (no GPU needed at all)
+# no GPU at inference: best CPU-capable set (cross-encoder runs on CPU, ~0.3 s/term)
+TERMMAP_TAG=_d3ce bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
+# fastest, fully CPU (also builds its own index on CPU)
 TERMMAP_TAG=_sap4 bash scripts/run_all.sh data/raw/eval.csv outputs/predictions.csv
 ```
 

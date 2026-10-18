@@ -6,8 +6,11 @@ import markdown
 import matplotlib
 from xhtml2pdf import pisa
 
+import sys
+
 HERE = Path(__file__).parent
-md = (HERE / "WRITEUP.md").read_text()
+NAME = sys.argv[1] if len(sys.argv) > 1 else "WRITEUP"
+md = (HERE / f"{NAME}.md").read_text()
 body = markdown.markdown(md, extensions=["tables", "fenced_code", "sane_lists"])
 body = body.replace('src="figures/', f'src="{(HERE / "figures").as_posix()}/')
 import shutil
@@ -41,7 +44,7 @@ img { width: 17.5cm; }
 html = f"""<html><head><meta charset="utf-8"><style>{css}</style></head><body>{body}
 <div id="footer" style="text-align:right; font-size:7pt; color:#7b8794;">TermMap-DX · HiLabs Hackathon 2026 · page <pdf:pagenumber/></div>
 </body></html>"""
-out = HERE / "WRITEUP.pdf"
+out = HERE / f"{NAME}.pdf"
 with open(out, "wb") as f:
-    status = pisa.CreatePDF(html, dest=f, encoding="utf-8", path=str(HERE / "WRITEUP.md"))
+    status = pisa.CreatePDF(html, dest=f, encoding="utf-8", path=str(HERE / f"{NAME}.md"))
 print("errors:", status.err, "->", out)
