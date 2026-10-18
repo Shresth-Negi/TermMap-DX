@@ -23,6 +23,7 @@ ap.add_argument("--dense", nargs="*", default=["sapbert"])
 ap.add_argument("--tag", default="")
 ap.add_argument("--llm-scores", default="", help="precomputed LLM shortlist scores (see scripts/llm_score.py)")
 ap.add_argument("--brief", action="store_true", help="write only the deliverable schema columns")
+ap.add_argument("--details-output", default="", help="with --brief: also write the full table (confidence, alternatives) here")
 ap.add_argument("--llm-model", default="", help="score shortlists inline with this local LLM (needs a GPU)")
 args = ap.parse_args()
 
@@ -37,6 +38,9 @@ if "coding_system" in out:
 orig_cols = list(pd.read_csv(args.input, nrows=0).columns)
 if "clinical_entity" in orig_cols:
     out = out.rename(columns={"entity": "clinical_entity"})
+if args.brief and args.details_output:
+    Path(args.details_output).parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(args.details_output, index=False)
 if args.brief:
     keep = [c for c in orig_cols if c in out and c not in ("code", "display")]
     keep += [c for c in ("code", "icd10cm_code", "snomed_code") if c in out and c not in keep]

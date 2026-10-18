@@ -129,9 +129,11 @@ then maps the input. The input may use the training layout
 (`chunk_id, clinical_entity[, chunk_text]`); a missing `subconcept` is inferred
 by a small classifier (82% CV accuracy). Output has, for **every row**,
 `icd10cm_code`, `snomed_code`, descriptions, calibrated confidences, margins and
-top-5 alternatives; when the input names a `coding_system` per row, `code`
-holds that system's prediction. `predict.py --brief` keeps only the input
-columns plus `icd10cm_code` / `snomed_code` (the deliverable schema).
+top-5 alternatives. `run_all.sh` writes the deliverable schema to the output path (the input
+columns plus `icd10cm_code`, `snomed_code`; for the brief's input that is exactly
+`chunk_id, clinical_entity, icd10cm_code, snomed_code`) and the full table to
+`<output>_detailed.csv`. When the input names a `coding_system` per row, a `code` column holds
+that system's prediction.
 
 Individual steps (`slurm/gpu_pipeline.sbatch` runs the full GPU sequence):
 

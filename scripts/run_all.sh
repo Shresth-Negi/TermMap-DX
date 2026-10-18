@@ -49,4 +49,7 @@ build_set() {
 }
 
 build_set "$TAG"
-$PY scripts/predict.py --input "$INPUT" --output "$OUTPUT" --tag "$TAG"
+# deliverable schema (input columns + icd10cm_code, snomed_code) and a detailed copy with
+# descriptions, calibrated confidences, margins and top-5 alternatives
+$PY scripts/predict.py --input "$INPUT" --output "$OUTPUT" --tag "$TAG" --brief \
+    --details-output "${OUTPUT%.csv}_detailed.csv"
